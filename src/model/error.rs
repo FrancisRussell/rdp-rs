@@ -3,7 +3,6 @@ use std::io::Error as IoError;
 use std::string::String;
 use native_tls::HandshakeError;
 use native_tls::Error as SslError;
-use yasna::ASN1Error;
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
@@ -78,7 +77,7 @@ pub enum RdpErrorKind {
     Unknown,
 
     #[error("Unexpected type")]
-    UnexpectedType
+    UnexpectedType,
 }
 
 #[derive(Debug)]
@@ -142,20 +141,22 @@ pub enum Error {
     #[error("SSL error")]
     SslError(#[from] SslError),
 
-    /// ASN1 parser error
-    #[error("ASN1 parser error: {0}")]
-    ASN1Error(ASN1Error),
+    /// ASN1 decoding error
+    #[error("ASN.1 decoding error: {0}")]
+    Asn1Decoding(#[from] rasn::error::DecodeError),
+
+    /// ASN1 encoding error
+    #[error("ASN.1 encoding error: {0}")]
+    Asn1Encoding(#[from] rasn::error::EncodeError),
+
+    /// X509 decoding error
+    #[error("X509 encoding error: {0}")]
+    X509Decoding(String)
 }
 
 impl<S: Read + Write> From<HandshakeError<S>> for Error {
     fn from(_: HandshakeError<S>) -> Error {
         Error::SslHandshakeError
-    }
-}
-
-impl From<ASN1Error> for Error {
-    fn from(e: ASN1Error) -> Error {
-        Error::ASN1Error(e)
     }
 }
 
