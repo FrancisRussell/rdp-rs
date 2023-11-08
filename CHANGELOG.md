@@ -7,6 +7,7 @@
 * Apply `clippy` fixes.
 * Simplify `mstsc-rs` command-line parsing using Clap's derive functionality.
 * Eliminate complex `yasna` wrapping code and replace with `rasn`.
+* Significantly reduce number of `unwrap`s/`expect`s in CredSSP negotiation.
 #### Bug fixes
 * Fix potential truncated read in `core::per::read_padding`.
 * Fix potential truncated write in `<Vec<u8> as Message>::write`.
