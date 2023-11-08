@@ -393,6 +393,7 @@ fn ts_fp_update() -> Component {
 }
 
 
+/// https://learn.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/a1c4caa8-00ed-45bb-a06e-5177473766d3
 #[repr(u8)]
 #[derive(Debug, TryFromPrimitive, Copy, Clone, Eq, PartialEq)]
 enum FastPathUpdateType {
