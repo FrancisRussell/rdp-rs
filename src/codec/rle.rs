@@ -312,18 +312,15 @@ pub fn rle_16_decompress(input: &[u8], width: usize, mut height: usize, output: 
     Ok(())
 }
 
-pub fn rgb565torgb32(input: &[u16], width: usize, height: usize) -> Vec<u8> {
-    input
-        .iter()
-        .copied()
-        .take(width * height)
-        .flat_map(|v| {
-            [
-                ((((v & 0x1f) * 527) + 23) >> 6) as u8,
-                (((((v >> 5) & 0x3f) * 259) + 33) >> 6) as u8,
-                (((((v >> 11) & 0x1f) * 527) + 23) >> 6) as u8,
-                0xff,
-            ]
-        })
-        .collect()
+pub fn rgb565torgb32(input: &[u16]) -> Vec<u8> {
+    let mut output = Vec::with_capacity(input.len() * 4);
+    output.extend(input.iter().copied().flat_map(|v| {
+        [
+            ((((v & 0x1f) * 527) + 23) >> 6) as u8,
+            (((((v >> 5) & 0x3f) * 259) + 33) >> 6) as u8,
+            (((((v >> 11) & 0x1f) * 527) + 23) >> 6) as u8,
+            0xff,
+        ]
+    }));
+    output
 }

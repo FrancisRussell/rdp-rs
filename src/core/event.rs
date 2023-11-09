@@ -61,7 +61,6 @@ impl BitmapEvent {
     /// }).unwrap()
     /// ```
     pub fn decompress(self) -> RdpResult<Vec<u8>> {
-
         // actually only handle 32 bpp
         match self.bpp {
             32 => {
@@ -79,7 +78,7 @@ impl BitmapEvent {
             16 => {
                 // 16 bpp is more consumer
                 let result_16bpp = if self.is_compress {
-                    let mut result = vec![0_u16; self.width as usize * self.height as usize * 2];
+                    let mut result = vec![0_u16; self.width as usize * self.height as usize];
                     rle_16_decompress(&self.data, self.width as usize, self.height as usize, &mut result)?;
                     result
                 } else {
@@ -87,15 +86,18 @@ impl BitmapEvent {
                     for i in 0..self.height {
                         for j in 0..self.width {
                             let src = (((self.height - i - 1) * self.width + j) * 2) as usize;
-                            result[(i * self.width + j) as usize] = u16::from(self.data[src + 1]) << 8 | u16::from(self.data[src]);
+                            result[(i * self.width + j) as usize] =
+                                u16::from(self.data[src + 1]) << 8 | u16::from(self.data[src]);
                         }
                     }
                     result
                 };
-
-                Ok(rgb565torgb32(&result_16bpp, self.width as usize, self.height as usize))
-            },
-            _ => Err(Error::RdpError(RdpError::new(RdpErrorKind::NotImplemented, &format!("Decompression Algorithm not implemented for bpp {}", self.bpp))))
+                Ok(rgb565torgb32(&result_16bpp))
+            }
+            _ => Err(Error::RdpError(RdpError::new(
+                RdpErrorKind::NotImplemented,
+                &format!("Decompression Algorithm not implemented for bpp {}", self.bpp),
+            ))),
         }
     }
 }
