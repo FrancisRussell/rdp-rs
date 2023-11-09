@@ -1,10 +1,14 @@
-use crate::model::error::{RdpError, RdpErrorKind, Error, RdpResult};
+use std::io::{Read, Write};
+
+use num_bigint::BigUint;
+use rasn::prelude::OctetString;
+use rasn::AsnType;
+use x509_parser::certificate::X509Certificate;
+use x509_parser::parse_x509_certificate;
+
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 use crate::model::link::Link;
 use crate::nla::sspi::AuthenticationProtocol;
-use num_bigint::{BigUint};
-use std::io::{Read, Write};
-use x509_parser::{parse_x509_certificate, certificate::X509Certificate};
-use rasn::{AsnType, prelude::OctetString};
 
 #[derive(Debug, AsnType, rasn::Encode, rasn::Decode)]
 struct NegoDatum {
@@ -28,7 +32,6 @@ struct TsRequest {
     #[rasn(tag(explicit(3)))]
     pub_key_auth: Option<rasn::types::OctetString>,
 }
-
 
 #[derive(Debug, AsnType, rasn::Encode)]
 struct TsCredentials {
@@ -65,7 +68,7 @@ struct TsPasswordCreds {
 pub fn create_ts_request(nego: Vec<u8>) -> RdpResult<Vec<u8>> {
     let ts_request = TsRequest {
         version: 2,
-        nego_tokens: Some(vec![NegoDatum{ nego_token: nego.into() }]),
+        nego_tokens: Some(vec![NegoDatum { nego_token: nego.into() }]),
         auth_info: None,
         pub_key_auth: None,
     };
@@ -90,11 +93,15 @@ pub fn create_ts_request(nego: Vec<u8>) -> RdpResult<Vec<u8>> {
 /// ```
 pub fn read_ts_server_challenge(stream: &[u8]) -> RdpResult<Vec<u8>> {
     let request: TsRequest = rasn::ber::decode(stream)?;
-    let nego_token: OctetString = request.nego_tokens
+    let nego_token: OctetString = request
+        .nego_tokens
         .ok_or_else(|| RdpError::new(RdpErrorKind::InvalidOptionalField, "negoTokens field is missing"))
-        .and_then(|nego_tokens| nego_tokens.into_iter().next().ok_or_else(|| {
-            RdpError::new(RdpErrorKind::InvalidRespond, "no entries in negoTokens")
-        }))
+        .and_then(|nego_tokens| {
+            nego_tokens
+                .into_iter()
+                .next()
+                .ok_or_else(|| RdpError::new(RdpErrorKind::InvalidRespond, "no entries in negoTokens"))
+        })
         .map(|datum| datum.nego_token)?;
     Ok(nego_token.into())
 }
@@ -140,33 +147,24 @@ pub fn read_public_certificate(stream: &[u8]) -> RdpResult<X509Certificate> {
 /// ```
 pub fn read_ts_validate(request: &[u8]) -> RdpResult<Vec<u8>> {
     let ts_validate: TsRequest = rasn::ber::decode(request)?;
-    let pub_key: Vec<u8> = ts_validate.pub_key_auth.ok_or_else(|| {
-        RdpError::new(RdpErrorKind::InvalidOptionalField, "public key missing")
-    })?.into();
+    let pub_key: Vec<u8> = ts_validate
+        .pub_key_auth
+        .ok_or_else(|| RdpError::new(RdpErrorKind::InvalidOptionalField, "public key missing"))?
+        .into();
     Ok(pub_key)
 }
 
 fn create_ts_credentials(domain: Vec<u8>, user: Vec<u8>, password: Vec<u8>) -> RdpResult<Vec<u8>> {
-    let ts_password_creds = TsPasswordCreds {
-        domain_name: domain.into(),
-        user_name: user.into(),
-        password: password.into(),
-    };
+    let ts_password_creds =
+        TsPasswordCreds { domain_name: domain.into(), user_name: user.into(), password: password.into() };
     let ts_password_creds_encoded = rasn::der::encode(&ts_password_creds)?;
-    let ts_credentials = TsCredentials {
-        cred_type: 1,
-        credentials: ts_password_creds_encoded.into(),
-    };
+    let ts_credentials = TsCredentials { cred_type: 1, credentials: ts_password_creds_encoded.into() };
     Ok(rasn::der::encode(&ts_credentials)?)
 }
 
 fn create_ts_authinfo(auth_info: Vec<u8>) -> RdpResult<Vec<u8>> {
-    let ts_auth_info = TsRequest {
-        version: 2,
-        nego_tokens: None,
-        auth_info: Some(auth_info.into()),
-        pub_key_auth: None,
-    };
+    let ts_auth_info =
+        TsRequest { version: 2, nego_tokens: None, auth_info: Some(auth_info.into()), pub_key_auth: None };
     Ok(rasn::der::encode(&ts_auth_info)?)
 }
 
@@ -209,7 +207,9 @@ fn read_asn1_tlv<R: Read>(reader: &mut R) -> RdpResult<Vec<u8>> {
 /// This the main function for CSSP protocol
 /// It will use the raw link layer and the selected authenticate protocol
 /// to perform the NLA authenticate
-pub fn cssp_connect<S: Read + Write>(link: &mut Link<S>, authentication_protocol: &mut dyn AuthenticationProtocol, restricted_admin_mode: bool) -> RdpResult<()> {
+pub fn cssp_connect<S: Read + Write>(
+    link: &mut Link<S>, authentication_protocol: &mut dyn AuthenticationProtocol, restricted_admin_mode: bool,
+) -> RdpResult<()> {
     // first step is to send the negotiate message from authentication protocol
     let negotiate_message = create_ts_request(authentication_protocol.create_negotiate_message()?)?;
     link.write_msg(&negotiate_message)?;
@@ -231,7 +231,10 @@ pub fn cssp_connect<S: Read + Write>(link: &mut Link<S>, authentication_protocol
     let certificate = read_public_certificate(&certificate_der)?;
 
     // Now we can send back our challenge payload wit the public key encoded
-    let challenge = create_ts_authenticate(client_challenge, security_interface.gss_wrapex(certificate.tbs_certificate.subject_pki.subject_public_key.data.as_ref())?)?;
+    let challenge = create_ts_authenticate(
+        client_challenge,
+        security_interface.gss_wrapex(certificate.tbs_certificate.subject_pki.subject_public_key.data.as_ref())?,
+    )?;
     link.write_msg(&challenge)?;
 
     // now server respond normally with the original public key incremented by one
@@ -241,16 +244,20 @@ pub fn cssp_connect<S: Read + Write>(link: &mut Link<S>, authentication_protocol
     };
 
     // Check possible man in the middle using cssp
-    if BigUint::from_bytes_le(&inc_pub_key) != BigUint::from_bytes_le(certificate.tbs_certificate.subject_pki.subject_public_key.data.as_ref()) + BigUint::new(vec![1]) {
-        return Err(Error::RdpError(RdpError::new(RdpErrorKind::PossibleMITM, "Man in the middle detected")))
+    if BigUint::from_bytes_le(&inc_pub_key)
+        != BigUint::from_bytes_le(certificate.tbs_certificate.subject_pki.subject_public_key.data.as_ref())
+            + BigUint::new(vec![1])
+    {
+        return Err(Error::RdpError(RdpError::new(RdpErrorKind::PossibleMITM, "Man in the middle detected")));
     }
 
     // compute the last message with encoded credentials
 
-    let domain = if restricted_admin_mode { vec![] } else { authentication_protocol.get_domain_name()};
+    let domain = if restricted_admin_mode { vec![] } else { authentication_protocol.get_domain_name() };
     let user = if restricted_admin_mode { vec![] } else { authentication_protocol.get_user_name() };
     let password = if restricted_admin_mode { vec![] } else { authentication_protocol.get_password() };
-    let credentials = create_ts_authinfo(security_interface.gss_wrapex(&create_ts_credentials(domain, user, password)?)?)?;
+    let credentials =
+        create_ts_authinfo(security_interface.gss_wrapex(&create_ts_credentials(domain, user, password)?)?)?;
     link.write_msg(&credentials)?;
     Ok(())
 }
@@ -261,14 +268,21 @@ mod test {
 
     #[test]
     fn test_create_ts_credentials() {
-        let credentials = create_ts_credentials(b"domain".to_vec(), b"user".to_vec(), b"password".to_vec()).expect("Unable to create credentials");
-        let result =  [48, 41, 160, 3, 2, 1, 1, 161, 34, 4, 32, 48, 30, 160, 8, 4, 6, 100, 111, 109, 97, 105, 110, 161, 6, 4, 4, 117, 115, 101, 114, 162, 10, 4, 8, 112, 97, 115, 115, 119, 111, 114, 100];
+        let credentials = create_ts_credentials(b"domain".to_vec(), b"user".to_vec(), b"password".to_vec())
+            .expect("Unable to create credentials");
+        let result = [
+            48, 41, 160, 3, 2, 1, 1, 161, 34, 4, 32, 48, 30, 160, 8, 4, 6, 100, 111, 109, 97, 105, 110, 161, 6, 4, 4,
+            117, 115, 101, 114, 162, 10, 4, 8, 112, 97, 115, 115, 119, 111, 114, 100,
+        ];
         assert_eq!(credentials[0..32], result[0..32]);
         assert_eq!(credentials[33..43], result[33..43]);
     }
 
     #[test]
     fn test_create_ts_authinfo() {
-        assert_eq!(create_ts_authinfo(b"foo".to_vec()).expect("Unable to create authinfo"), [48, 12, 160, 3, 2, 1, 2, 162, 5, 4, 3, 102, 111, 111]);
+        assert_eq!(
+            create_ts_authinfo(b"foo".to_vec()).expect("Unable to create authinfo"),
+            [48, 12, 160, 3, 2, 1, 2, 162, 5, 4, 3, 102, 111, 111]
+        );
     }
 }
