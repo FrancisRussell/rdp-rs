@@ -1,7 +1,7 @@
 pub struct Rc4 {
     i: u8,
     j: u8,
-    state: [u8; 256]
+    state: [u8; 256],
 }
 
 impl Rc4 {
@@ -18,6 +18,7 @@ impl Rc4 {
         }
         rc4
     }
+
     fn next(&mut self) -> u8 {
         self.i = self.i.wrapping_add(1);
         self.j = self.j.wrapping_add(self.state[self.i as usize]);

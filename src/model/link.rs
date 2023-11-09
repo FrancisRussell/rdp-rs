@@ -1,7 +1,9 @@
-use crate::model::data::{Message};
-use crate::model::error::{RdpResult, Error, RdpError, RdpErrorKind};
-use native_tls::{TlsConnector, TlsStream, Certificate};
 use std::io::{Read, Write};
+
+use native_tls::{Certificate, TlsConnector, TlsStream};
+
+use crate::model::data::Message;
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 
 /// This a wrapper to work equals
 /// for a stream and a TLS stream
@@ -10,14 +12,18 @@ pub enum Stream<S> {
     /// Raw stream that implement Read + Write
     Raw(S),
     /// TLS Stream
-    Ssl(TlsStream<S>)
+    Ssl(TlsStream<S>),
 }
 
-impl<S> Write for Stream<S> where S: Write, TlsStream<S>: Write {
+impl<S> Write for Stream<S>
+where
+    S: Write,
+    TlsStream<S>: Write,
+{
     fn write(&mut self, buffer: &[u8]) -> std::io::Result<usize> {
         match self {
             Stream::Raw(e) => e.write(buffer),
-            Stream::Ssl(e) => e.write(buffer)
+            Stream::Ssl(e) => e.write(buffer),
         }
     }
 
@@ -29,11 +35,15 @@ impl<S> Write for Stream<S> where S: Write, TlsStream<S>: Write {
     }
 }
 
-impl<S> Read for Stream<S> where S: Read, TlsStream<S>: Read {
-    fn read(&mut self, buf: &mut[u8]) -> std::io::Result<usize> {
+impl<S> Read for Stream<S>
+where
+    S: Read,
+    TlsStream<S>: Read,
+{
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self {
             Stream::Raw(e) => e.read(buf),
-            Stream::Ssl(e) => e.read(buf)
+            Stream::Ssl(e) => e.read(buf),
         }
     }
 }
@@ -69,12 +79,7 @@ impl<S: Read + Write> Link<S> {
     /// let addr = "127.0.0.1:3389".parse::<SocketAddr>().unwrap();
     /// let link_tcp = Link::new(Stream::Raw(TcpStream::connect(&addr).unwrap()));
     /// ```
-    pub fn new(stream: Stream<S>) -> Self {
-        Link {
-            stream,
-            serialization_buffer: Vec::new(),
-        }
-    }
+    pub fn new(stream: Stream<S>) -> Self { Link { stream, serialization_buffer: Vec::new() } }
 
     /// This method is designed to write a Message
     /// either for TCP or SSL stream
@@ -140,7 +145,7 @@ impl<S: Read + Write> Link<S> {
         let connector = builder.build()?;
 
         if let Stream::Raw(stream) = self.stream {
-            return Ok(Link::new(Stream::Ssl(connector.connect("", stream)?)))
+            return Ok(Link::new(Stream::Ssl(connector.connect("", stream)?)));
         }
         Err(Error::RdpError(RdpError::new(RdpErrorKind::NotImplemented, "start_ssl on ssl stream is forbidden")))
     }
@@ -160,26 +165,25 @@ impl<S: Read + Write> Link<S> {
     pub fn get_peer_certificate(&self) -> RdpResult<Option<Certificate>> {
         if let Stream::Ssl(stream) = &self.stream {
             Ok(stream.peer_certificate()?)
-        }
-        else {
-            Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidData, "get peer certificate on non ssl link is impossible")))
+        } else {
+            Err(Error::RdpError(RdpError::new(
+                RdpErrorKind::InvalidData,
+                "get peer certificate on non ssl link is impossible",
+            )))
         }
     }
 
     /// Close the stream
     /// Only works on SSL Stream
-    pub fn shutdown(&mut self) -> RdpResult<()> {
-        Ok(self.stream.shutdown()?)
-    }
+    pub fn shutdown(&mut self) -> RdpResult<()> { Ok(self.stream.shutdown()?) }
 
     #[cfg(feature = "integration")]
-    pub fn get_stream(self) -> Stream<S> {
-        self.stream
-    }
+    pub fn get_stream(self) -> Stream<S> { self.stream }
 }
 
-impl<S> Read for Link<S> where Stream<S>: Read {
-    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, std::io::Error> {
-        self.stream.read(buffer)
-    }
+impl<S> Read for Link<S>
+where
+    Stream<S>: Read,
+{
+    fn read(&mut self, buffer: &mut [u8]) -> Result<usize, std::io::Error> { self.stream.read(buffer) }
 }
