@@ -8,11 +8,13 @@
 * Simplify `mstsc-rs` command-line parsing using Clap's derive functionality.
 * Eliminate complex `yasna` wrapping code and replace with `rasn`.
 * Significantly reduce number of `unwrap`s/`expect`s in CredSSP negotiation.
+* Clean up and reduce number of unwraps in run-length encoding code.
 #### Bug fixes
 * Fix potential truncated read in `core::per::read_padding`.
 * Fix potential truncated write in `<Vec<u8> as Message>::write`.
 * Fix potential truncated write in `model::link::Stream::write` (now renamed).
 * Fix multiple potential truncated/oversized reads in `nla::cssp::cssp_connect`.
+* Fix oversized decode buffer in `BitmapEvent::decompress`.
 
 ### 0.1.1 (2020-04-11)
 #### Features

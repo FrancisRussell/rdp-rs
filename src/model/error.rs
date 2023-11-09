@@ -78,6 +78,9 @@ pub enum RdpErrorKind {
 
     #[error("Unexpected type")]
     UnexpectedType,
+
+    #[error("Invalid data detected during RLE decode")]
+    RleDecode,
 }
 
 #[derive(Debug)]
