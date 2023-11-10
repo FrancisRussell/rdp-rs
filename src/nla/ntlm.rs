@@ -1,6 +1,7 @@
 use crate::model::data::{Message, Component, U16, U32, Trame, DynOption, Check, DataType, MessageOption, to_vec};
 use crate::model::error::{RdpResult, RdpError, RdpErrorKind, Error};
 use crate::model::rnd::{random};
+use crate::model::unicode::Unicode as _;
 use crate::nla::rc4::{Rc4};
 use crate::nla::sspi::{AuthenticationProtocol, GenericSecurityService};
 use hmac::{Hmac, Mac};
@@ -288,24 +289,6 @@ fn md5(data: &[u8]) -> Vec<u8> {
     hasher.finalize_fixed().to_vec()
 }
 
-/// Encode a string into utf-16le
-///
-/// This is a basic algorithm to encode
-/// an utf-8 string into utf-16le
-///
-/// # Example
-/// ```rust, ignore
-/// let encoded_string = unicode("foo".to_string());
-/// ```
-fn unicode(data: &str) -> Vec<u8> {
-    let mut result = Cursor::new(Vec::new());
-    for c in data.encode_utf16() {
-        let encode_char = U16::LE(c);
-        encode_char.write(&mut result).unwrap();
-    }
-    result.into_inner()
-}
-
 /// Compute HMAC with MD5 hash algorithm
 ///
 /// This is a convenience method to write
@@ -330,7 +313,7 @@ fn hmac_md5(key: &[u8], data: &[u8]) -> Vec<u8> {
 /// let key = ntowfv2("hello123".to_string(), "user".to_string(), "domain".to_string())
 /// ```
 fn ntowfv2(password: &str, user: &str, domain: &str) -> Vec<u8> {
-    hmac_md5(&md4(&unicode(password)), &unicode(&(user.to_uppercase() + domain)))
+    hmac_md5(&md4(&password.to_utf16_le()), &(user.to_uppercase() + domain).to_utf16_le())
 }
 
 /// This function is used to compute init key of another hmac_md5
@@ -344,7 +327,7 @@ fn ntowfv2(password: &str, user: &str, domain: &str) -> Vec<u8> {
 /// let key = ntowfv2("hello123".to_string(), "user".to_string(), "domain".to_string())
 /// ```
 fn ntowfv2_hash(hash: &[u8], user: &str, domain: &str) -> Vec<u8> {
-    hmac_md5(hash, &unicode(&(user.to_uppercase() + domain)))
+    hmac_md5(hash, &(user.to_uppercase() + domain).to_utf16_le())
 }
 
 /// This function is used to compute init key of another hmac_md5
@@ -609,7 +592,7 @@ impl AuthenticationProtocol  for Ntlm {
     /// Retrieve the domain name encoded as expected during negotiate payload
     fn get_domain_name(&self) -> Vec<u8> {
         if self.is_unicode {
-            unicode(&self.domain)
+            self.domain.to_utf16_le()
         } else {
             self.domain.as_bytes().to_vec()
         }
@@ -618,7 +601,7 @@ impl AuthenticationProtocol  for Ntlm {
     /// Retrieve the user name encoded as expected during negotiate payload
     fn get_user_name(&self) -> Vec<u8> {
         if self.is_unicode {
-            unicode(&self.user)
+            self.user.to_utf16_le()
         } else {
             self.user.as_bytes().to_vec()
         }
@@ -627,7 +610,7 @@ impl AuthenticationProtocol  for Ntlm {
     /// Retrieve the password encoded as expected during negotiate payload
     fn get_password(&self) -> Vec<u8> {
         if self.is_unicode {
-            unicode(&self.password)
+            self.password.to_utf16_le()
         } else {
             self.password.as_bytes().to_vec()
         }
@@ -752,7 +735,7 @@ mod test {
     /// Test of the unicode function
     #[test]
     fn test_unicode() {
-        assert_eq!(unicode("foo"), [0x66, 0x00, 0x6f, 0x00, 0x6f, 0x00]);
+        assert_eq!("foo".to_utf16_le(), [0x66, 0x00, 0x6f, 0x00, 0x6f, 0x00]);
     }
 
     /// Test HMAC_MD5 function

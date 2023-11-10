@@ -231,7 +231,7 @@ pub fn client_core_data(parameter: Option<ClientData>) -> Component {
         "sasSequence" => U16::LE(Sequence::RnsUdSasDel as u16),
         "kbdLayout" => U32::LE(client_parameter.layout as u32),
         "clientBuild" => U32::LE(3790),
-        "clientName" => client_name.to_string().to_unicode(),
+        "clientName" => client_name.to_string().to_utf16_le(),
         "keyboardType" => U32::LE(KeyboardType::Ibm101102Keys as u32),
         "keyboardSubType" => U32::LE(0),
         "keyboardFnKeys" => U32::LE(12),
