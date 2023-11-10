@@ -81,15 +81,15 @@ fn rdp_extended_infos() -> Component {
 /// interactive logon used credentials
 /// present in this payload
 fn rdp_infos(is_extended_info: bool, domain: &String, username: &String, password: &String, auto_logon: bool) -> Component {
-    let mut domain_format = domain.to_unicode();
+    let mut domain_format = domain.to_utf16_le();
     domain_format.push(0);
     domain_format.push(0);
 
-    let mut username_format = username.to_unicode();
+    let mut username_format = username.to_utf16_le();
     username_format.push(0);
     username_format.push(0);
 
-    let mut password_format = password.to_unicode();
+    let mut password_format = password.to_utf16_le();
     password_format.push(0);
     password_format.push(0);
 

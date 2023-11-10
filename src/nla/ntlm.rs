@@ -313,7 +313,7 @@ fn hmac_md5(key: &[u8], data: &[u8]) -> Vec<u8> {
 /// let key = ntowfv2("hello123".to_string(), "user".to_string(), "domain".to_string())
 /// ```
 fn ntowfv2(password: &str, user: &str, domain: &str) -> Vec<u8> {
-    hmac_md5(&md4(&password.to_unicode()), &(user.to_uppercase() + domain).to_unicode())
+    hmac_md5(&md4(&password.to_utf16_le()), &(user.to_uppercase() + domain).to_utf16_le())
 }
 
 /// This function is used to compute init key of another hmac_md5
@@ -327,7 +327,7 @@ fn ntowfv2(password: &str, user: &str, domain: &str) -> Vec<u8> {
 /// let key = ntowfv2("hello123".to_string(), "user".to_string(), "domain".to_string())
 /// ```
 fn ntowfv2_hash(hash: &[u8], user: &str, domain: &str) -> Vec<u8> {
-    hmac_md5(hash, &(user.to_uppercase() + domain).to_unicode())
+    hmac_md5(hash, &(user.to_uppercase() + domain).to_utf16_le())
 }
 
 /// This function is used to compute init key of another hmac_md5
@@ -592,7 +592,7 @@ impl AuthenticationProtocol  for Ntlm {
     /// Retrieve the domain name encoded as expected during negotiate payload
     fn get_domain_name(&self) -> Vec<u8> {
         if self.is_unicode {
-            self.domain.to_unicode()
+            self.domain.to_utf16_le()
         } else {
             self.domain.as_bytes().to_vec()
         }
@@ -601,7 +601,7 @@ impl AuthenticationProtocol  for Ntlm {
     /// Retrieve the user name encoded as expected during negotiate payload
     fn get_user_name(&self) -> Vec<u8> {
         if self.is_unicode {
-            self.user.to_unicode()
+            self.user.to_utf16_le()
         } else {
             self.user.as_bytes().to_vec()
         }
@@ -610,7 +610,7 @@ impl AuthenticationProtocol  for Ntlm {
     /// Retrieve the password encoded as expected during negotiate payload
     fn get_password(&self) -> Vec<u8> {
         if self.is_unicode {
-            self.password.to_unicode()
+            self.password.to_utf16_le()
         } else {
             self.password.as_bytes().to_vec()
         }
@@ -735,7 +735,7 @@ mod test {
     /// Test of the unicode function
     #[test]
     fn test_unicode() {
-        assert_eq!("foo".to_unicode(), [0x66, 0x00, 0x6f, 0x00, 0x6f, 0x00]);
+        assert_eq!("foo".to_utf16_le(), [0x66, 0x00, 0x6f, 0x00, 0x6f, 0x00]);
     }
 
     /// Test HMAC_MD5 function
