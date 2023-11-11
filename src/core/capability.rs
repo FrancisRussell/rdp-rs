@@ -1,9 +1,11 @@
-use crate::core::gcc::{KeyboardLayout, KeyboardType};
-use crate::model::data::{Component, U16, U32, DynOption, MessageOption, Message, DataType, Check, Trame, to_vec};
-use crate::model::error::{RdpResult, Error, RdpError, RdpErrorKind};
-use num_enum::TryFromPrimitive;
 use std::convert::TryFrom;
 use std::io::Cursor;
+
+use num_enum::TryFromPrimitive;
+
+use crate::core::gcc::{KeyboardLayout, KeyboardType};
+use crate::model::data::{to_vec, Check, Component, DataType, DynOption, Message, MessageOption, Trame, U16, U32};
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 
 /// All capabilities that can be negotiated
 /// between client and server
@@ -38,7 +40,7 @@ pub enum CapabilitySetType {
     LargePointer = 0x001B,
     SurfaceCommands = 0x001C,
     BitmapCodecs = 0x001D,
-    FrameAcknowledge = 0x001E
+    FrameAcknowledge = 0x001E,
 }
 
 /// A capability
@@ -59,7 +61,7 @@ pub enum CapabilitySetType {
 #[derive(Debug)]
 pub struct Capability {
     pub cap_type: CapabilitySetType,
-    pub message: Component
+    pub message: Component,
 }
 
 impl Capability {
@@ -94,7 +96,10 @@ impl Capability {
             CapabilitySetType::Sound => ts_sound_capability_set(),
             CapabilitySetType::Multifragmentupdate => ts_multifragment_update_capability_ts(),
             _ => {
-                return Err(Error::RdpError(RdpError::new(RdpErrorKind::Unknown, &format!("CAPABILITY: Unknown capability {:?}", cap_type))))
+                return Err(Error::RdpError(RdpError::new(
+                    RdpErrorKind::Unknown,
+                    &format!("CAPABILITY: Unknown capability {:?}", cap_type),
+                )))
             }
         };
         capability.message.read(&mut Cursor::new(cast!(DataType::Slice, capability_set["capabilitySet"])?))?;
@@ -119,7 +124,8 @@ impl Capability {
 /// }
 /// ```
 pub fn capability_set(capability: Option<Capability>) -> Component {
-    let default_capability = capability.unwrap_or(Capability{ cap_type: CapabilitySetType::General, message: component![]});
+    let default_capability =
+        capability.unwrap_or(Capability { cap_type: CapabilitySetType::General, message: component![] });
     component![
         "capabilitySetType" => U16::LE(default_capability.cap_type as u16),
         "lengthCapability" => DynOption::new(U16::LE(default_capability.message.length() as u16 + 4), |length| MessageOption::Size("capabilitySet".to_string(), length.inner() as usize - 4)),
@@ -138,7 +144,7 @@ enum OsMajorType {
     Unix = 0x0004,
     Ios = 0x0005,
     Osx = 0x0006,
-    Android = 0x0007
+    Android = 0x0007,
 }
 
 #[allow(dead_code)]
@@ -153,7 +159,7 @@ enum OsMinorType {
     Macintosh = 0x0006,
     NativeXserver = 0x0007,
     PseudoXserver = 0x0008,
-    WindowsRt = 0x0009
+    WindowsRt = 0x0009,
 }
 
 #[repr(u16)]
@@ -163,7 +169,7 @@ pub enum GeneralExtraFlag {
     NoBitmapCompressionHdr = 0x0400,
     LongCredentialsSupported = 0x0004,
     AutoreconnectSupported = 0x0008,
-    EncSaltedChecksum = 0x0010
+    EncSaltedChecksum = 0x0010,
 }
 
 /// General capability
@@ -193,7 +199,7 @@ pub fn ts_general_capability_set(extra_flags: Option<u16>) -> Capability {
             "generalCompressionLevel" => Check::new(U16::LE(0)),
             "refreshRectSupport" => 0_u8,
             "suppressOutputSupport" => 0_u8
-        ]
+        ],
     }
 }
 
@@ -210,7 +216,9 @@ pub fn ts_general_capability_set(extra_flags: Option<u16>) -> Capability {
 /// let capability_set = capability_set(Some(ts_bitmap_capability_set(Some(24), Some(800), Some(600))));
 /// assert_eq!(to_vec(&capability_set), [2, 0, 28, 0, 24, 0, 1, 0, 1, 0, 1, 0, 32, 3, 88, 2, 0, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0])
 /// ```
-pub fn ts_bitmap_capability_set(preferred_bits_per_pixel: Option<u16>, desktop_width: Option<u16>, desktop_height: Option<u16>) -> Capability {
+pub fn ts_bitmap_capability_set(
+    preferred_bits_per_pixel: Option<u16>, desktop_width: Option<u16>, desktop_height: Option<u16>,
+) -> Capability {
     Capability {
         cap_type: CapabilitySetType::Bitmap,
         message: component![
@@ -227,7 +235,7 @@ pub fn ts_bitmap_capability_set(preferred_bits_per_pixel: Option<u16>, desktop_w
             "drawingFlags" => 0_u8,
             "multipleRectangleSupport" => Check::new(U16::LE(0x0001)),
             "pad2octetsB" => U16::LE(0)
-        ]
+        ],
     }
 }
 
@@ -239,7 +247,7 @@ pub enum OrderFlag {
     ZeroBoundsDeltasSupport = 0x0008,
     ColorIndexSupport = 0x0020,
     SolidPatternBrushOnly = 0x0040,
-    OrderFlagsExtraFlags = 0x0080
+    OrderFlagsExtraFlags = 0x0080,
 }
 
 /// Order capability
@@ -275,7 +283,7 @@ pub fn ts_order_capability_set(order_flags: Option<u16>) -> Capability {
             "pad2octetsD" => U16::LE(0),
             "textANSICodePage" => U16::LE(0),
             "pad2octetsE" => U16::LE(0)
-        ]
+        ],
     }
 }
 
@@ -306,7 +314,7 @@ pub fn ts_bitmap_cache_capability_set() -> Capability {
             "cache1MaximumCellSize" => U16::LE(0),
             "cache2Entries" => U16::LE(0),
             "cache2MaximumCellSize" => U16::LE(0)
-        ]
+        ],
     }
 }
 
@@ -328,7 +336,7 @@ pub fn ts_pointer_capability_set() -> Capability {
         message: component![
             "colorPointerFlag" => U16::LE(0),
             "colorPointerCacheSize" => U16::LE(20)
-        ]
+        ],
     }
 }
 
@@ -357,7 +365,7 @@ pub enum InputFlags {
     /// Support of the mouse wheel
     /// This feature is supported by rdp-rs
     MouseHwheel = 0x0100,
-    QoeTimestamps = 0x0200
+    QoeTimestamps = 0x0200,
 }
 
 /// Send input capability
@@ -383,7 +391,7 @@ pub fn ts_input_capability_set(input_flags: Option<u16>, keyboard_layout: Option
             "keyboardSubType" => U32::LE(0),
             "keyboardFunctionKey" => U32::LE(12),
             "imeFileName" => vec![0_u8; 64]
-        ]
+        ],
     }
 }
 
@@ -404,7 +412,7 @@ pub fn ts_brush_capability_set() -> Capability {
         cap_type: CapabilitySetType::Brush,
         message: component![
             "brushSupportLevel" => U32::LE(0)
-        ]
+        ],
     }
 }
 
@@ -417,7 +425,6 @@ fn cache_entry() -> Component {
         "cacheMaximumCellSize" => U16::LE(0)
     ]
 }
-
 
 /// Glyph capability set
 /// send from client to server
@@ -443,7 +450,7 @@ pub fn ts_glyph_capability_set() -> Capability {
             "fragCache" => U32::LE(0),
             "glyphSupportLevel" => U16::LE(0),
             "pad2octets" => U16::LE(0)
-        ]
+        ],
     }
 }
 
@@ -467,7 +474,7 @@ pub fn ts_offscreen_capability_set() -> Capability {
             "offscreenSupportLevel" => U32::LE(0),
             "offscreenCacheSize" => U16::LE(0),
             "offscreenCacheEntries" => U16::LE(0)
-        ]
+        ],
     }
 }
 
@@ -490,7 +497,7 @@ pub fn ts_virtualchannel_capability_set() -> Capability {
         message: component![
             "flags" => U32::LE(0),
             "VCChunkSize" => Some(U32::LE(0))
-        ]
+        ],
     }
 }
 
@@ -513,7 +520,7 @@ pub fn ts_sound_capability_set() -> Capability {
         message: component![
             "soundFlags" => U16::LE(0),
             "pad2octetsA" => U16::LE(0)
-        ]
+        ],
     }
 }
 
@@ -535,6 +542,6 @@ pub fn ts_multifragment_update_capability_ts() -> Capability {
         cap_type: CapabilitySetType::Multifragmentupdate,
         message: component![
             "MaxRequestSize" => U32::LE(0)
-        ]
+        ],
     }
 }

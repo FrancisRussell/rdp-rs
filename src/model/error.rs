@@ -1,8 +1,7 @@
-use std::io::{Read, Write};
-use std::io::Error as IoError;
+use std::io::{Error as IoError, Read, Write};
 use std::string::String;
-use native_tls::HandshakeError;
-use native_tls::Error as SslError;
+
+use native_tls::{Error as SslError, HandshakeError};
 use num_enum::{TryFromPrimitive, TryFromPrimitiveError};
 use thiserror::Error;
 
@@ -88,7 +87,7 @@ pub struct RdpError {
     /// Kind of error
     kind: RdpErrorKind,
     /// Associated message of the context
-    message: String
+    message: String,
 }
 
 impl std::fmt::Display for RdpError {
@@ -106,12 +105,7 @@ impl RdpError {
     /// use rdp::model::error::{RdpError, RdpErrorKind};
     /// let error = RdpError::new(RdpErrorKind::Disconnect, "disconnected");
     /// ```
-    pub fn new (kind: RdpErrorKind, message: &str) -> Self {
-        RdpError {
-            kind,
-            message: String::from(message)
-        }
-    }
+    pub fn new(kind: RdpErrorKind, message: &str) -> Self { RdpError { kind, message: String::from(message) } }
 
     /// Return the kind of error
     ///
@@ -121,9 +115,7 @@ impl RdpError {
     /// let error = RdpError::new(RdpErrorKind::Disconnect, "disconnected");
     /// assert_eq!(error.kind(), RdpErrorKind::Disconnect)
     /// ```
-    pub fn kind(&self) -> RdpErrorKind {
-        self.kind
-    }
+    pub fn kind(&self) -> RdpErrorKind { self.kind }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -154,13 +146,11 @@ pub enum Error {
 
     /// X509 decoding error
     #[error("X509 encoding error: {0}")]
-    X509Decoding(String)
+    X509Decoding(String),
 }
 
 impl<S: Read + Write> From<HandshakeError<S>> for Error {
-    fn from(_: HandshakeError<S>) -> Error {
-        Error::SslHandshakeError
-    }
+    fn from(_: HandshakeError<S>) -> Error { Error::SslHandshakeError }
 }
 
 impl<T: TryFromPrimitive> From<TryFromPrimitiveError<T>> for Error {
@@ -175,22 +165,21 @@ pub type RdpResult<T> = Result<T, Error>;
 #[macro_export]
 macro_rules! try_option {
     ($val: expr, $expr: expr) => {
-         if let Some(x) = $val {
+        if let Some(x) = $val {
             Ok(x)
-         } else {
+        } else {
             Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidOptionalField, $expr)))
-         }
-    }
+        }
+    };
 }
 
 #[macro_export]
 macro_rules! try_let {
     ($ident: path, $val: expr) => {
-         if let $ident(x) = $val {
+        if let $ident(x) = $val {
             Ok(x)
-         } else {
+        } else {
             Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidCast, "Invalid Cast")))
-         }
-    }
+        }
+    };
 }
-

@@ -1,15 +1,12 @@
-use crate::core::event::{RdpEvent, PointerButton};
+use std::io::{Read, Write};
+
+use crate::core::event::{PointerButton, RdpEvent};
 use crate::core::gcc::KeyboardLayout;
-use crate::core::global;
-use crate::core::global::{ts_pointer_event, PointerFlag, ts_keyboard_event, KeyboardFlag};
-use crate::core::mcs;
-use crate::core::sec;
-use crate::core::tpkt;
-use crate::core::x224;
-use crate::model::error::{RdpResult, Error, RdpError, RdpErrorKind};
+use crate::core::global::{ts_keyboard_event, ts_pointer_event, KeyboardFlag, PointerFlag};
+use crate::core::{global, mcs, sec, tpkt, x224};
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 use crate::model::link::{Link, Stream};
 use crate::nla::ntlm::Ntlm;
-use std::io::{Read, Write};
 
 impl From<&str> for KeyboardLayout {
     fn from(e: &str) -> Self {
@@ -26,7 +23,7 @@ pub struct RdpClient<S> {
     /// This is the main switch layer of the protocol
     mcs: mcs::Client<S>,
     /// Global channel that implement the basic layer
-    global: global::Client
+    global: global::Client,
 }
 
 impl<S: Read + Write> RdpClient<S> {
@@ -55,11 +52,16 @@ impl<S: Read + Write> RdpClient<S> {
     /// }).unwrap()
     /// ```
     pub fn read<T>(&mut self, callback: T) -> RdpResult<()>
-    where T: FnMut(RdpEvent) {
+    where
+        T: FnMut(RdpEvent),
+    {
         let (channel_name, message) = self.mcs.read()?;
         match channel_name.as_str() {
             "global" => self.global.read(message, &mut self.mcs, callback),
-            _ => Err(Error::RdpError(RdpError::new(RdpErrorKind::UnexpectedType, &format!("Invalid channel name {:?}", channel_name))))
+            _ => Err(Error::RdpError(RdpError::new(
+                RdpErrorKind::UnexpectedType,
+                &format!("Invalid channel name {:?}", channel_name),
+            ))),
         }
     }
 
@@ -106,8 +108,9 @@ impl<S: Read + Write> RdpClient<S> {
                     flags |= PointerFlag::Down as u16;
                 }
 
-                self.global.write_input_event(ts_pointer_event(Some(flags), Some(pointer.x), Some(pointer.y)), &mut self.mcs)
-            },
+                self.global
+                    .write_input_event(ts_pointer_event(Some(flags), Some(pointer.x), Some(pointer.y)), &mut self.mcs)
+            }
             // Raw keyboard input
             RdpEvent::Key(key) => {
                 let mut flags: u16 = 0;
@@ -116,7 +119,9 @@ impl<S: Read + Write> RdpClient<S> {
                 }
                 self.global.write_input_event(ts_keyboard_event(Some(flags), Some(key.code)), &mut self.mcs)
             }
-            _ => Err(Error::RdpError(RdpError::new(RdpErrorKind::UnexpectedType, "RDPCLIENT: This event can't be sent")))
+            _ => {
+                Err(Error::RdpError(RdpError::new(RdpErrorKind::UnexpectedType, "RDPCLIENT: This event can't be sent")))
+            }
         }
     }
 
@@ -129,16 +134,14 @@ impl<S: Read + Write> RdpClient<S> {
         match result {
             Err(Error::RdpError(e)) => match e.kind() {
                 RdpErrorKind::InvalidAutomata => Ok(()),
-                _ => Err(Error::RdpError(e))
+                _ => Err(Error::RdpError(e)),
             },
-            _ => result
+            _ => result,
         }
     }
 
     /// Close client is indeed close the switch layer
-    pub fn shutdown(&mut self) -> RdpResult<()> {
-        self.mcs.shutdown()
-    }
+    pub fn shutdown(&mut self) -> RdpResult<()> { self.mcs.shutdown() }
 }
 
 #[derive(Debug)]
@@ -172,7 +175,7 @@ pub struct Connector {
     name: String,
     /// Use network level authentication
     /// default TRUE
-    use_nla: bool
+    use_nla: bool,
 }
 
 impl Connector {
@@ -187,7 +190,8 @@ impl Connector {
     ///     .credentials("domain".to_string(), "username".to_string(), "password".to_string());
     /// ```
     #[allow(clippy::new_without_default)]
-    #[must_use] pub fn new() -> Self {
+    #[must_use]
+    pub fn new() -> Self {
         Connector {
             width: 800,
             height: 600,
@@ -201,7 +205,7 @@ impl Connector {
             blank_creds: false,
             check_certificate: false,
             name: "rdp-rs".to_string(),
-            use_nla: true
+            use_nla: true,
         }
     }
 
@@ -221,15 +225,13 @@ impl Connector {
     /// let mut client = connector.connect(tcp).unwrap();
     /// ```
     pub fn connect<S: Read + Write>(&mut self, stream: S) -> RdpResult<RdpClient<S>> {
-
         // Create a wrapper around the stream
-        let tcp = Link::new( Stream::Raw(stream));
+        let tcp = Link::new(Stream::Raw(stream));
 
         // Compute authentication method
         let mut authentication = if let Some(hash) = &self.password_hash {
             Ntlm::from_hash(self.domain.clone(), self.username.clone(), hash)
-        }
-        else {
+        } else {
             Ntlm::new(self.domain.clone(), self.username.clone(), self.password.clone())
         };
         // Create the x224 layer
@@ -245,7 +247,7 @@ impl Connector {
             self.check_certificate,
             Some(&mut authentication),
             self.restricted_admin_mode,
-            self.blank_creds
+            self.blank_creds,
         )?;
 
         // Create MCS layer and connect it
@@ -253,21 +255,9 @@ impl Connector {
         mcs.connect(self.name.clone(), self.width, self.height, self.layout)?;
         // state less connection for old secure layer
         if self.restricted_admin_mode {
-            sec::connect(
-                &mut mcs,
-                &String::new(),
-                &String::new(),
-                &String::new(),
-                self.auto_logon
-            )?;
+            sec::connect(&mut mcs, &String::new(), &String::new(), &String::new(), self.auto_logon)?;
         } else {
-            sec::connect(
-                &mut mcs,
-                &self.domain,
-                &self.username,
-                &self.password,
-                self.auto_logon
-            )?;
+            sec::connect(&mut mcs, &self.domain, &self.username, &self.password, self.auto_logon)?;
         }
 
         // Now the global channel
@@ -277,13 +267,10 @@ impl Connector {
             self.width,
             self.height,
             self.layout,
-            &self.name
+            &self.name,
         );
 
-        Ok(RdpClient {
-            mcs,
-            global
-        })
+        Ok(RdpClient { mcs, global })
     }
 
     /// Configure the screen size of the session

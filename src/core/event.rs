@@ -1,6 +1,7 @@
-use crate::model::error::{RdpResult, Error, RdpError, RdpErrorKind};
-use crate::codec::rle::{rle_32_decompress, rle_16_decompress, rgb565torgb32};
 use num_enum::TryFromPrimitive;
+
+use crate::codec::rle::{rgb565torgb32, rle_16_decompress, rle_32_decompress};
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 
 /// A bitmap event is used
 /// to notify client that it received
@@ -29,7 +30,7 @@ pub struct BitmapEvent {
     /// true if bitmap buffer is compressed using RLE
     pub is_compress: bool,
     /// Bitmap data
-    pub data: Vec<u8>
+    pub data: Vec<u8>,
 }
 
 impl BitmapEvent {
@@ -65,16 +66,14 @@ impl BitmapEvent {
         match self.bpp {
             32 => {
                 // 32 bpp is straight forward
-                Ok(
-                    if self.is_compress {
-                        let mut result = vec![0_u8; self.width as usize * self.height as usize * 4];
-                        rle_32_decompress(&self.data, u32::from(self.width), u32::from(self.height), &mut result)?;
-                        result
-                    } else {
-                        self.data
-                    }
-                )
-            },
+                Ok(if self.is_compress {
+                    let mut result = vec![0_u8; self.width as usize * self.height as usize * 4];
+                    rle_32_decompress(&self.data, u32::from(self.width), u32::from(self.height), &mut result)?;
+                    result
+                } else {
+                    self.data
+                })
+            }
             16 => {
                 // 16 bpp is more consumer
                 let result_16bpp = if self.is_compress {
@@ -112,7 +111,7 @@ pub enum PointerButton {
     /// Right mouse button
     Right = 2,
     /// Wheel mouse button
-    Middle = 3
+    Middle = 3,
 }
 
 /// A mouse pointer event
@@ -125,7 +124,7 @@ pub struct PointerEvent {
     /// Which button is pressed
     pub button: PointerButton,
     /// true if it's a down press action
-    pub down: bool
+    pub down: bool,
 }
 
 /// Keyboard event
@@ -136,7 +135,7 @@ pub struct KeyboardEvent {
     /// Scancode of the key
     pub code: u16,
     /// State of the key
-    pub down: bool
+    pub down: bool,
 }
 
 /// All event handle by RDP protocol implemented by rdp-rs
@@ -147,5 +146,5 @@ pub enum RdpEvent {
     /// Mouse event
     Pointer(PointerEvent),
     /// Keyboard event
-    Key(KeyboardEvent)
+    Key(KeyboardEvent),
 }

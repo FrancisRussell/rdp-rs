@@ -1,12 +1,14 @@
-use crate::core::per;
-use crate::model::data::{Component, U32, U16, Trame, to_vec, Message, DataType, DynOption, MessageOption, Check, Array};
-use crate::model::error::{RdpResult, RdpError, RdpErrorKind, Error};
-use crate::model::unicode::Unicode;
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
+use crate::core::per;
+use crate::model::data::{
+    to_vec, Array, Check, Component, DataType, DynOption, Message, MessageOption, Trame, U16, U32,
+};
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
+use crate::model::unicode::Unicode;
 
-const T124_02_98_OID: [u8; 6] = [ 0, 0, 20, 124, 0, 1 ];
+const T124_02_98_OID: [u8; 6] = [0, 0, 20, 124, 0, 1];
 const H221_CS_KEY: [u8; 4] = *b"Duca";
 const H221_SC_KEY: [u8; 4] = *b"McDn";
 /// RDP protocol version
@@ -17,7 +19,7 @@ const H221_SC_KEY: [u8; 4] = *b"McDn";
 pub enum Version {
     RdpVersion = 0x0008_0001,
     RdpVersion5plus = 0x0008_0004,
-    Unknown
+    Unknown,
 }
 
 impl From<u32> for Version {
@@ -25,7 +27,7 @@ impl From<u32> for Version {
         match e {
             0x0008_0001 => Version::RdpVersion5plus,
             0x0008_0004 => Version::RdpVersion,
-            _ => Version::Unknown
+            _ => Version::Unknown,
         }
     }
 }
@@ -40,13 +42,13 @@ enum ColorDepth {
     RnsUdColor8BPP = 0xCA01,
     RnsUdColor16BPP555 = 0xCA02,
     RnsUdColor16BPP565 = 0xCA03,
-    RnsUdColor24BPP = 0xCA04
+    RnsUdColor24BPP = 0xCA04,
 }
 
 #[repr(u16)]
 #[derive(Clone, Copy, Debug)]
 enum Sequence {
-    RnsUdSasDel = 0xAA03
+    RnsUdSasDel = 0xAA03,
 }
 
 /// Keyboard layout
@@ -72,7 +74,7 @@ pub enum KeyboardLayout {
     Japanese = 0x0000_0411,
     Korean = 0x0000_0412,
     Dutch = 0x0000_0413,
-    Norwegian = 0x0000_0414
+    Norwegian = 0x0000_0414,
 }
 
 /// Keyboard type
@@ -81,13 +83,13 @@ pub enum KeyboardLayout {
 #[allow(dead_code)]
 #[derive(Clone, Copy, Debug)]
 pub enum KeyboardType {
-    IbmPcXt83Key  = 0x0000_0001,
-    Olivetti  = 0x0000_0002,
-    IbmPcAt84Key  = 0x0000_0003,
-    Ibm101102Keys  = 0x0000_0004,
-    Nokia1050  = 0x0000_0005,
-    Nokia9140  = 0x0000_0006,
-    Japanese  = 0x0000_0007
+    IbmPcXt83Key = 0x0000_0001,
+    Olivetti = 0x0000_0002,
+    IbmPcAt84Key = 0x0000_0003,
+    Ibm101102Keys = 0x0000_0004,
+    Nokia1050 = 0x0000_0005,
+    Nokia9140 = 0x0000_0006,
+    Japanese = 0x0000_0007,
 }
 
 #[repr(u16)]
@@ -99,7 +101,7 @@ enum HighColor {
     HighColor8BPP = 0x0008,
     HighColor15BPP = 0x000f,
     HighColor16BPP = 0x0010,
-    HighColor24BPP = 0x0018
+    HighColor24BPP = 0x0018,
 }
 
 /// Supported color depth
@@ -111,7 +113,7 @@ enum Support {
     RnsUd24BPP = 0x0001,
     RnsUd16BPP = 0x0002,
     RnsUd15BPP = 0x0004,
-    RnsUd32BPP = 0x0008
+    RnsUd32BPP = 0x0008,
 }
 
 /// Negotiation of some capability for pdu layer
@@ -123,14 +125,14 @@ enum CapabilityFlag {
     RnsUdCsSupportErrinfoPDU = 0x0001,
     RnsUdCsWant32BPPSession = 0x0002,
     RnsUdCsSupportStatusInfoPdu = 0x0004,
-    RnsUdCsStrongAsymmetricKeys  = 0x0008,
+    RnsUdCsStrongAsymmetricKeys = 0x0008,
     RnsUdCsUnused = 0x0010,
     RnsUdCsValidConnectionType = 0x0020,
     RnsUdCsSupportMonitorLayoutPDU = 0x0040,
     RnsUdCsSupportNetcharAutodetect = 0x0080,
     RnsUdCsSupportDynvcGFXProtocol = 0x0100,
     RnsUdCsSupportDynamicTimezone = 0x0200,
-    RnsUdCsSupportHeartbeatPDU = 0x0400
+    RnsUdCsSupportHeartbeatPDU = 0x0400,
 }
 
 /// Supported encryption method
@@ -142,7 +144,7 @@ enum EncryptionMethod {
     EncryptionFlag40bit = 0x0000_0001,
     EncryptionFlag128bit = 0x0000_0002,
     EncryptionFlag56bit = 0x0000_0008,
-    FipsEncryptionFlag = 0x0000_0010
+    FipsEncryptionFlag = 0x0000_0010,
 }
 
 /// Encryption level
@@ -154,12 +156,12 @@ enum EncryptionLevel {
     Low = 0x0000_0001,
     ClientCompatible = 0x0000_0002,
     High = 0x0000_0003,
-    Fips = 0x0000_0004
+    Fips = 0x0000_0004,
 }
 
 #[repr(u16)]
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Hash)]
-pub enum MessageType  {
+pub enum MessageType {
     //server -> client
     ScCore = 0x0C01,
     ScSecurity = 0x0C02,
@@ -170,7 +172,7 @@ pub enum MessageType  {
     CsNet = 0xC003,
     CsCluster = 0xC004,
     CsMonitor = 0xC005,
-    Unknown = 0
+    Unknown = 0,
 }
 
 impl From<u16> for MessageType {
@@ -184,7 +186,7 @@ impl From<u16> for MessageType {
             0xC003 => MessageType::CsNet,
             0xC004 => MessageType::CsCluster,
             0xC005 => MessageType::CsMonitor,
-            _ => MessageType::Unknown
+            _ => MessageType::Unknown,
         }
     }
 }
@@ -198,7 +200,7 @@ pub struct ClientData {
     pub layout: KeyboardLayout,
     pub server_selected_protocol: u32,
     pub rdp_version: Version,
-    pub name: String
+    pub name: String,
 }
 
 /// This is the first client specific data
@@ -207,15 +209,14 @@ pub struct ClientData {
 /// RDP they are not use
 /// https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/00f1da4a-ee9c-421a-852f-c19f92343d73?redirectedfrom=MSDN
 pub fn client_core_data(parameter: Option<ClientData>) -> Component {
-    let client_parameter = parameter.unwrap_or(
-        ClientData {
-            width: 0,
-            height: 0,
-            layout: KeyboardLayout::French,
-            server_selected_protocol: 0,
-            rdp_version: Version::RdpVersion5plus,
-            name: String::new()
-        });
+    let client_parameter = parameter.unwrap_or(ClientData {
+        width: 0,
+        height: 0,
+        layout: KeyboardLayout::French,
+        server_selected_protocol: 0,
+        rdp_version: Version::RdpVersion5plus,
+        name: String::new(),
+    });
 
     let client_name = if client_parameter.name.len() >= 16 {
         client_parameter.name[0..16].to_string()
@@ -254,7 +255,7 @@ pub fn client_core_data(parameter: Option<ClientData>) -> Component {
     ]
 }
 
-pub fn server_core_data() -> Component{
+pub fn server_core_data() -> Component {
     component![
         "rdpVersion" => U32::LE(0),
         "clientRequestedProtocol" => Some(U32::LE(0)),
@@ -315,7 +316,7 @@ pub fn block_header(data_type: Option<MessageType>, length: Option<u16>) -> Comp
     ]
 }
 
-pub fn write_conference_create_request(user_data: &[u8]) ->RdpResult<Vec<u8>> {
+pub fn write_conference_create_request(user_data: &[u8]) -> RdpResult<Vec<u8>> {
     let mut result = Cursor::new(vec![]);
     per::write_choice(0, &mut result)?;
     per::write_object_identifier(&T124_02_98_OID, &mut result)?;
@@ -326,7 +327,7 @@ pub fn write_conference_create_request(user_data: &[u8]) ->RdpResult<Vec<u8>> {
     per::write_padding(1, &mut result)?;
     per::write_number_of_set(1, &mut result)?;
     per::write_choice(0xc0, &mut result)?;
-    per::write_octet_stream(&H221_CS_KEY, 4,&mut result)?;
+    per::write_octet_stream(&H221_CS_KEY, 4, &mut result)?;
     per::write_octet_stream(user_data, 0, &mut result)?;
     Ok(result.into_inner())
 }
@@ -334,7 +335,7 @@ pub fn write_conference_create_request(user_data: &[u8]) ->RdpResult<Vec<u8>> {
 #[derive(Clone, Debug)]
 pub struct ServerData {
     pub channel_ids: Vec<u16>,
-    pub rdp_version : Version
+    pub rdp_version: Version,
 }
 
 /// Read conference create response
@@ -354,7 +355,6 @@ pub fn read_conference_create_response(cc_response: &mut dyn Read) -> RdpResult<
     let mut result = HashMap::new();
     let mut sub = cc_response.take(u64::from(length));
     loop {
-
         let mut header = block_header(None, None);
         // No more blocks to read
         if header.read(&mut sub).is_err() {
@@ -369,24 +369,27 @@ pub fn read_conference_create_response(cc_response: &mut dyn Read) -> RdpResult<
                 let mut server_core = server_core_data();
                 server_core.read(&mut Cursor::new(buffer))?;
                 result.insert(MessageType::ScCore, server_core);
-            },
+            }
             MessageType::ScSecurity => {
                 let mut server_security = server_security_data();
                 server_security.read(&mut Cursor::new(buffer))?;
                 result.insert(MessageType::ScSecurity, server_security);
-            },
+            }
             MessageType::ScNet => {
                 let mut server_net = server_network_data();
                 server_net.read(&mut Cursor::new(buffer))?;
                 result.insert(MessageType::ScNet, server_net);
             }
-            _ => println!("GCC: Unknown server block {:?}", cast!(DataType::U16, header["type"])?)
+            _ => println!("GCC: Unknown server block {:?}", cast!(DataType::U16, header["type"])?),
         }
     }
 
     // All section are important
-    Ok(ServerData{
-        channel_ids: cast!(DataType::Trame, result[&MessageType::ScNet]["channelIdArray"])?.iter().map(|x| cast!(DataType::U16, x).unwrap()).collect(),
-        rdp_version: Version::from(cast!(DataType::U32, result[&MessageType::ScCore]["rdpVersion"])?)
+    Ok(ServerData {
+        channel_ids: cast!(DataType::Trame, result[&MessageType::ScNet]["channelIdArray"])?
+            .iter()
+            .map(|x| cast!(DataType::U16, x).unwrap())
+            .collect(),
+        rdp_version: Version::from(cast!(DataType::U32, result[&MessageType::ScCore]["rdpVersion"])?),
     })
 }
