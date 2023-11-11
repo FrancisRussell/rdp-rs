@@ -1,7 +1,7 @@
-use crate::model::data::{Message, U16, Trame, U32};
-use crate::model::error::{RdpResult, Error, RdpError, RdpErrorKind};
 use std::io::{Read, Write};
 
+use crate::model::data::{Message, Trame, U16, U32};
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 
 /// PER encoding length
 /// read length of following payload
@@ -19,12 +19,11 @@ pub fn read_length(s: &mut dyn Read) -> RdpResult<u16> {
     byte.read(s)?;
     if byte & 0x80 != 0 {
         byte &= !0x80;
-        let mut size = u16::from(byte) << 8 ;
+        let mut size = u16::from(byte) << 8;
         byte.read(s)?;
         size += u16::from(byte);
         Ok(size)
-    }
-    else {
+    } else {
         Ok(u16::from(byte))
     }
 }
@@ -45,8 +44,7 @@ pub fn read_length(s: &mut dyn Read) -> RdpResult<u16> {
 pub fn write_length(length: u16) -> RdpResult<Trame> {
     if length > 0x7f {
         Ok(trame![U16::BE(length | 0x8000)])
-    }
-    else {
+    } else {
         Ok(trame![length as u8])
     }
 }
@@ -61,7 +59,7 @@ pub fn write_length(length: u16) -> RdpResult<Trame> {
 /// assert_eq!(read_choice(&mut s).unwrap(), 1)
 /// ```
 pub fn read_choice(s: &mut dyn Read) -> RdpResult<u8> {
-    let mut result : u8 = 0;
+    let mut result: u8 = 0;
     result.read(s)?;
     Ok(result)
 }
@@ -92,7 +90,7 @@ pub fn write_choice(choice: u8, s: &mut dyn Write) -> RdpResult<()> {
 /// assert_eq!(read_selection(&mut s).unwrap(), 1)
 /// ```
 pub fn read_selection(s: &mut dyn Read) -> RdpResult<u8> {
-    let mut result : u8 = 0;
+    let mut result: u8 = 0;
     result.read(s)?;
     Ok(result)
 }
@@ -123,7 +121,7 @@ pub fn write_selection(selection: u8, s: &mut dyn Write) -> RdpResult<()> {
 /// assert_eq!(read_number_of_set(&mut s).unwrap(), 1)
 /// ```
 pub fn read_number_of_set(s: &mut dyn Read) -> RdpResult<u8> {
-    let mut result : u8 = 0;
+    let mut result: u8 = 0;
     result.read(s)?;
     Ok(result)
 }
@@ -154,7 +152,7 @@ pub fn write_number_of_set(number_of_set: u8, s: &mut dyn Write) -> RdpResult<()
 /// assert_eq!(read_enumerates(&mut s).unwrap(), 1)
 /// ```
 pub fn read_enumerates(s: &mut dyn Read) -> RdpResult<u8> {
-    let mut result : u8 = 0;
+    let mut result: u8 = 0;
     result.read(s)?;
     Ok(result)
 }
@@ -168,9 +166,7 @@ pub fn read_enumerates(s: &mut dyn Read) -> RdpResult<u8> {
 /// use rdp::model::data::to_vec;
 /// assert_eq!(to_vec(&write_enumerates(1).unwrap()), [1]);
 /// ```
-pub fn write_enumerates(enumerate: u8) -> RdpResult<u8> {
-    Ok(enumerate)
-}
+pub fn write_enumerates(enumerate: u8) -> RdpResult<u8> { Ok(enumerate) }
 
 /// Read an PER encoded integer
 /// Variable sized integer
@@ -195,18 +191,18 @@ pub fn read_integer(s: &mut dyn Read) -> RdpResult<u32> {
             let mut result: u8 = 0;
             result.read(s)?;
             Ok(u32::from(result))
-        },
+        }
         2 => {
             let mut result = U16::BE(0);
             result.read(s)?;
             Ok(u32::from(result.inner()))
-        },
+        }
         4 => {
             let mut result = U32::BE(0);
             result.read(s)?;
             Ok(result.inner())
-        },
-        _ => Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidSize, "PER integer encoded with an invalid size")))
+        }
+        _ => Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidSize, "PER integer encoded with an invalid size"))),
     }
 }
 
@@ -240,7 +236,6 @@ pub fn write_integer(integer: u32, s: &mut dyn Write) -> RdpResult<()> {
     Ok(())
 }
 
-
 /// Read u16 integer PER encoded
 ///
 /// # Example
@@ -271,7 +266,6 @@ pub fn write_integer_16(integer: u16, minimum: u16, s: &mut dyn Write) -> RdpRes
     Ok(())
 }
 
-
 /// Read an object identifier encoded in PER
 ///
 /// # Example
@@ -296,7 +290,7 @@ pub fn read_object_identifier(oid: &[u8], s: &mut dyn Read) -> RdpResult<bool> {
     }
 
     let mut oid_parsed = [0; 6];
-    let mut tmp : u8 = 0;
+    let mut tmp: u8 = 0;
 
     tmp.read(s)?;
     oid_parsed[0] = tmp >> 4;
@@ -323,19 +317,15 @@ pub fn read_object_identifier(oid: &[u8], s: &mut dyn Read) -> RdpResult<bool> {
 /// write_object_identifier(&[1, 2, 3, 4, 5, 6], &mut s).unwrap();
 /// assert_eq!(s.into_inner(), [5, 0x12, 3, 4, 5, 6]);
 /// ```
-pub fn write_object_identifier(oid: &[u8], s: &mut dyn Write) ->RdpResult<()> {
+pub fn write_object_identifier(oid: &[u8], s: &mut dyn Write) -> RdpResult<()> {
     if oid.len() != 6 {
-        return Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidSize, "PER: oid source don't have the correct size")))
+        return Err(Error::RdpError(RdpError::new(
+            RdpErrorKind::InvalidSize,
+            "PER: oid source don't have the correct size",
+        )));
     }
 
-    trame![
-        5_u8,
-        oid[0] << 4 | oid[1] & 0xF,
-        oid[2],
-        oid[3],
-        oid[4],
-        oid[5]
-    ].write(s)
+    trame![5_u8, oid[0] << 4 | oid[1] & 0xF, oid[2], oid[3], oid[4], oid[5]].write(s)
 }
 
 /// Read a numeric string
@@ -354,7 +344,7 @@ pub fn read_numeric_string(minimum: usize, s: &mut dyn Read) -> RdpResult<Vec<u8
     Ok(result)
 }
 
-pub fn write_numeric_string(string: &[u8], minimum: usize,  s: &mut dyn Write) -> RdpResult<()> {
+pub fn write_numeric_string(string: &[u8], minimum: usize, s: &mut dyn Write) -> RdpResult<()> {
     let mut length = string.len();
     if length as i64 - minimum as i64 >= 0 {
         length -= minimum;
@@ -364,11 +354,7 @@ pub fn write_numeric_string(string: &[u8], minimum: usize,  s: &mut dyn Write) -
 
     for i in 0..string.len() {
         let mut c1 = string[i];
-        let mut c2 = if i + 1 < string.len() {
-            string[i+1]
-        } else {
-            0x30
-        };
+        let mut c2 = if i + 1 < string.len() { string[i + 1] } else { 0x30 };
         c1 = (c1 - 0x30) % 10;
         c2 = (c2 - 0x30) % 10;
 
@@ -404,13 +390,19 @@ pub fn write_padding(length: usize, s: &mut dyn Write) -> RdpResult<()> {
 pub fn read_octet_stream(octet_stream: &[u8], minimum: usize, s: &mut dyn Read) -> RdpResult<()> {
     let length = read_length(s)? as usize + minimum;
     if length != octet_stream.len() {
-        return Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidSize, "PER: source octet string have an invalid size")));
+        return Err(Error::RdpError(RdpError::new(
+            RdpErrorKind::InvalidSize,
+            "PER: source octet string have an invalid size",
+        )));
     }
     for octet in octet_stream.iter().copied() {
         let mut c: u8 = 0;
         c.read(s)?;
         if c != octet {
-            return Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidData, "PER: source octet string have an invalid char")));
+            return Err(Error::RdpError(RdpError::new(
+                RdpErrorKind::InvalidData,
+                "PER: source octet string have an invalid char",
+            )));
         }
     }
 

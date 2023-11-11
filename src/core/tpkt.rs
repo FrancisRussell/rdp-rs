@@ -1,15 +1,16 @@
-use crate::model::data::{Message, U16, Component, Trame};
-use crate::model::error::{RdpResult, RdpError, RdpErrorKind, Error};
-use crate::model::link::{Link};
+use std::io::{Cursor, Read, Write};
+
+use crate::model::data::{Component, Message, Trame, U16};
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
+use crate::model::link::Link;
 use crate::nla::cssp::cssp_connect;
 use crate::nla::sspi::AuthenticationProtocol;
-use std::io::{Cursor, Write, Read};
 
 /// TPKT must implement this two kind of payload
 #[derive(Clone, Debug)]
 pub enum Payload {
     Raw(Cursor<Vec<u8>>),
-    FastPath(u8, Cursor<Vec<u8>>)
+    FastPath(u8, Cursor<Vec<u8>>),
 }
 
 /// TPKT action header
@@ -18,7 +19,7 @@ pub enum Payload {
 #[derive(Copy, Clone, Debug)]
 pub enum Action {
     FastPathActionFastPath = 0x0,
-    FastPathActionX224 = 0x3
+    FastPathActionX224 = 0x3,
 }
 
 /// TPKT layer header
@@ -44,16 +45,12 @@ fn tpkt_header(size: u16) -> Component {
 /// ```
 #[derive(Debug)]
 pub struct Client<S> {
-    transport: Link<S>
+    transport: Link<S>,
 }
 
 impl<S: Read + Write> Client<S> {
     /// Ctor of TPKT client layer
-    pub fn new (transport: Link<S>) -> Self {
-        Client {
-            transport
-        }
-    }
+    pub fn new(transport: Link<S>) -> Self { Client { transport } }
 
     /// Send a message to the link layer
     /// with appropriate header
@@ -81,13 +78,10 @@ impl<S: Read + Write> Client<S> {
     /// }
     /// ```
     pub fn write<T: 'static>(&mut self, message: T) -> RdpResult<()>
-    where T: Message {
-        self.transport.write_msg(
-            &trame![
-                tpkt_header(message.length() as u16),
-                message
-            ]
-        )
+    where
+        T: Message,
+    {
+        self.transport.write_msg(&trame![tpkt_header(message.length() as u16), message])
     }
 
     /// Read a payload from the underlying layer
@@ -128,7 +122,6 @@ impl<S: Read + Write> Client<S> {
         let mut action: u8 = 0;
         action.read(&mut buffer)?;
         if action == Action::FastPathActionX224 as u8 {
-
             // read padding
             let mut padding: u8 = 0;
             padding.read(&mut buffer)?;
@@ -142,8 +135,7 @@ impl<S: Read + Write> Client<S> {
             // https://docs.microsoft.com/en-us/openspecs/windows_protocols/ms-rdpbcgr/18a27ef9-6f9a-4501-b000-94b1fe3c2c10
             if size.inner() < 4 {
                 Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidSize, "Invalid minimal size for TPKT")))
-            }
-            else {
+            } else {
                 // now wait for body
                 Ok(Payload::Raw(Cursor::new(self.transport.read_exact_to_vec(size.inner() as usize - 4)?)))
             }
@@ -162,13 +154,15 @@ impl<S: Read + Write> Client<S> {
                 } else {
                     Ok(Payload::FastPath(sec_flag, Cursor::new(self.transport.read_exact_to_vec(length as usize - 3)?)))
                 }
-            }
-            else if short_length < 2 {
+            } else if short_length < 2 {
                 Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidSize, "Invalid minimal size for TPKT")))
             } else {
-                Ok(Payload::FastPath(sec_flag, Cursor::new(self.transport.read_exact_to_vec(short_length as usize - 2)?)))
+                Ok(Payload::FastPath(
+                    sec_flag,
+                    Cursor::new(self.transport.read_exact_to_vec(short_length as usize - 2)?),
+                ))
             }
-         }
+        }
     }
 
     /// This function transform the link layer with
@@ -202,38 +196,35 @@ impl<S: Read + Write> Client<S> {
     /// let mut tpkt = tpkt::Client::new(link::Link::new(link::Stream::Raw(tcp)));
     /// let mut tpkt_nla = tpkt.start_nla(false, &mut Ntlm::new("domain".to_string(), "username".to_string(), "password".to_string()), false);
     /// ```
-    pub fn start_nla(self, check_certificate: bool, authentication_protocol: &mut dyn AuthenticationProtocol, restricted_admin_mode: bool) -> RdpResult<Client<S>> {
+    pub fn start_nla(
+        self, check_certificate: bool, authentication_protocol: &mut dyn AuthenticationProtocol,
+        restricted_admin_mode: bool,
+    ) -> RdpResult<Client<S>> {
         let mut link = self.transport.start_ssl(check_certificate)?;
         cssp_connect(&mut link, authentication_protocol, restricted_admin_mode)?;
         Ok(Client::new(link))
     }
 
     /// Shutdown current connection
-    pub fn shutdown(&mut self) -> RdpResult<()> {
-        self.transport.shutdown()
-    }
+    pub fn shutdown(&mut self) -> RdpResult<()> { self.transport.shutdown() }
 
     #[cfg(feature = "integration")]
-    pub fn get_link(self) -> Link<S> {
-        self.transport
-    }
+    pub fn get_link(self) -> Link<S> { self.transport }
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::io::Cursor;
-    use crate::model::data::{U32, DataType};
+
+    use super::*;
+    use crate::model::data::{DataType, U32};
     use crate::model::link::Stream;
 
     /// Test the tpkt header type in write context
     #[test]
     fn test_write_tpkt_header() {
         let x = U32::BE(1);
-        let message = trame![
-            tpkt_header(x.length() as u16),
-            x
-        ];
+        let message = trame![tpkt_header(x.length() as u16), x];
         let mut buffer = Cursor::new(Vec::new());
         message.write(&mut buffer).unwrap();
         assert_eq!(buffer.get_ref().as_slice(), [3, 0, 0, 8, 0, 0, 0, 1]);
@@ -242,7 +233,7 @@ mod test {
     /// Test read of TPKT header
     #[test]
     fn test_read_tpkt_header() {
-        let mut message =  tpkt_header(0);
+        let mut message = tpkt_header(0);
         let mut buffer = Cursor::new([3, 0, 0, 8, 0, 0, 0, 1]);
         message.read(&mut buffer).unwrap();
         assert_eq!(cast!(DataType::U16, message["size"]).unwrap(), 8);

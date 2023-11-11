@@ -1,9 +1,10 @@
-use byteorder::{WriteBytesExt, ReadBytesExt, LittleEndian, BigEndian};
-use crate::model::error::{RdpResult, RdpErrorKind, RdpError, Error};
-use indexmap::IndexMap;
-use std::collections::{HashSet, HashMap};
-use std::io::{Write, Read, Cursor};
+use std::collections::{HashMap, HashSet};
+use std::io::{Cursor, Read, Write};
 
+use byteorder::{BigEndian, LittleEndian, ReadBytesExt, WriteBytesExt};
+use indexmap::IndexMap;
+
+use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 
 /// All data type used
 ///
@@ -42,9 +43,8 @@ pub enum DataType<'a> {
     /// A slice is just a raw u8 of vector
     Slice(&'a [u8]),
     /// Optional value can be absent
-    None
+    None,
 }
-
 
 /// Retrieve leaf value into a type tree
 ///
@@ -67,10 +67,12 @@ pub enum DataType<'a> {
 /// ```
 #[macro_export]
 macro_rules! cast {
-    ($ident:path, $expr:expr) => (match $expr.visit() {
-        $ident(e) => Ok(e),
-        _ => Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidCast, "Invalid Cast")))
-    })
+    ($ident:path, $expr:expr) => {
+        match $expr.visit() {
+            $ident(e) => Ok(e),
+            _ => Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidCast, "Invalid Cast"))),
+        }
+    };
 }
 
 /// Allow to a son to inform parent of something special
@@ -88,14 +90,13 @@ pub enum MessageOption {
     /// for a particular field
     Size(String, usize),
     /// Non option
-    None
+    None,
 }
 
 /// All is a message
 ///
 /// A message can be Read or Write from a Stream
-///
-pub trait Message : Send + std::fmt::Debug {
+pub trait Message: Send + std::fmt::Debug {
     /// Write node to the Stream
     ///
     /// Write current element into a writable stream
@@ -127,7 +128,6 @@ pub trait Message : Send + std::fmt::Debug {
 ///
 /// Implement Message trait for basic type u8
 impl Message for u8 {
-
     /// Write u8 value into stream
     /// # Example
     ///
@@ -142,9 +142,7 @@ impl Message for u8 {
     ///     assert_eq!(*s.get_ref(), vec![8 as u8]);
     /// # }
     /// ```
-    fn write(&self, writer: &mut dyn Write)  -> RdpResult<()> {
-        Ok(writer.write_u8(*self)?)
-    }
+    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> { Ok(writer.write_u8(*self)?) }
 
     /// Read u8 value from stream
     /// # Example
@@ -176,9 +174,7 @@ impl Message for u8 {
     ///     assert_eq!(x.length(), 1);
     /// # }
     /// ```
-    fn length(&self) -> u64 {
-        1
-    }
+    fn length(&self) -> u64 { 1 }
 
     /// Use visitor pattern to retrieve
     /// leaf value in case of node component
@@ -198,9 +194,7 @@ impl Message for u8 {
     ///     }
     /// # }
     /// ```
-    fn visit(&self) -> DataType {
-        DataType::U8(*self)
-    }
+    fn visit(&self) -> DataType { DataType::U8(*self) }
 
     /// Retrieve option of a subnode
     ///
@@ -209,9 +203,7 @@ impl Message for u8 {
     /// like skipping field of a component
     ///
     /// This kind of node have no option
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 /// Trame is just a list of boxed Message
@@ -271,9 +263,9 @@ impl Message for Trame {
     ///     assert_eq!(s.into_inner(), [0, 2, 0, 0, 0])
     /// # }
     /// ```
-    fn write(&self, writer: &mut dyn Write) -> RdpResult<()>{
+    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
         for v in self {
-           v.write(writer)?;
+            v.write(writer)?;
         }
         Ok(())
     }
@@ -298,9 +290,9 @@ impl Message for Trame {
     ///     assert_eq!(cast!(DataType::U32, x[1]).unwrap(), 3);
     /// # }
     /// ```
-    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()>{
+    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()> {
         for v in self {
-           v.read(reader)?;
+            v.read(reader)?;
         }
         Ok(())
     }
@@ -321,7 +313,7 @@ impl Message for Trame {
     /// # }
     /// ```
     fn length(&self) -> u64 {
-        let mut sum : u64 = 0;
+        let mut sum: u64 = 0;
         for v in self {
             sum += v.length();
         }
@@ -345,14 +337,10 @@ impl Message for Trame {
     ///     assert_eq!(cast!(DataType::U32, y[1]).unwrap(), 3)
     /// # }
     /// ```
-    fn visit(&self) -> DataType {
-        DataType::Trame(self)
-    }
+    fn visit(&self) -> DataType { DataType::Trame(self) }
 
     /// A trame have no options
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 /// A component is key value ordered
@@ -389,7 +377,7 @@ impl Message for Component {
     ///     assert_eq!(s.into_inner(), [3, 6, 0, 0, 0])
     /// # }
     /// ```
-    fn write(&self, writer: &mut dyn Write) -> RdpResult<()>{
+    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
         let mut filtering_key = HashSet::new();
         for (name, value) in self {
             // ignore filtering keys
@@ -424,7 +412,7 @@ impl Message for Component {
     ///     assert_eq!(cast!(DataType::U32, x["field2"]).unwrap(), 6)
     /// # }
     /// ```
-    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()>{
+    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()> {
         let mut filtering_key = HashSet::new();
         let mut dynamic_size = HashMap::new();
         for (name, value) in &mut *self {
@@ -434,20 +422,22 @@ impl Message for Component {
             }
 
             if dynamic_size.contains_key(name) {
-                let mut local =vec![0; dynamic_size[name]];
+                let mut local = vec![0; dynamic_size[name]];
                 reader.read_exact(&mut local)?;
                 value.read(&mut Cursor::new(local))?;
-            }
-            else {
+            } else {
                 value.read(reader)?;
             }
 
             match value.options() {
-                MessageOption::SkipField(field) => { filtering_key.insert(field); },
-                MessageOption::Size(field, size) => { dynamic_size.insert(field, size); },
-                MessageOption::None => ()
+                MessageOption::SkipField(field) => {
+                    filtering_key.insert(field);
+                }
+                MessageOption::Size(field, size) => {
+                    dynamic_size.insert(field, size);
+                }
+                MessageOption::None => (),
             }
-
         }
         Ok(())
     }
@@ -472,7 +462,7 @@ impl Message for Component {
     /// # }
     /// ```
     fn length(&self) -> u64 {
-        let mut sum : u64 = 0;
+        let mut sum: u64 = 0;
         let mut filtering_key = HashSet::new();
         for (name, value) in self {
             // ignore filtering keys
@@ -510,14 +500,10 @@ impl Message for Component {
     ///     assert_eq!(cast!(DataType::U32, y["field2"]).unwrap(), 3)
     /// # }
     /// ```
-    fn visit(&self) -> DataType {
-        DataType::Component(self)
-    }
+    fn visit(&self) -> DataType { DataType::Component(self) }
 
     /// A component have no option by default
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 #[derive(Copy, Clone, Debug)]
@@ -525,7 +511,7 @@ pub enum Value<Type> {
     /// Big Endianness
     BE(Type),
     /// Little Endianness
-    LE(Type)
+    LE(Type),
 }
 
 impl<Type: Copy + PartialEq> Value<Type> {
@@ -539,23 +525,20 @@ impl<Type: Copy + PartialEq> Value<Type> {
     /// ```
     pub fn inner(&self) -> Type {
         match self {
-            Value::<Type>::BE(e) | Value::<Type>::LE(e) => *e
+            Value::<Type>::BE(e) | Value::<Type>::LE(e) => *e,
         }
     }
 }
 
 impl<Type: Copy + PartialEq> PartialEq for Value<Type> {
     /// Equality between all type
-    fn eq(&self, other: &Self) -> bool {
-        self.inner() == other.inner()
-    }
+    fn eq(&self, other: &Self) -> bool { self.inner() == other.inner() }
 }
 
 /// Unsigned 16 bits message
 pub type U16 = Value<u16>;
 
 impl Message for U16 {
-
     /// Write an unsigned 16 bits value
     ///
     /// # Example
@@ -569,10 +552,10 @@ impl Message for U16 {
     /// U16::BE(4).write(&mut s2).unwrap();
     /// assert_eq!(s2.into_inner(), [0, 4]);
     /// ```
-    fn write(&self, writer: &mut dyn Write) -> RdpResult<()>{
+    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
         match self {
             U16::BE(value) => Ok(writer.write_u16::<BigEndian>(*value)?),
-            U16::LE(value) => Ok(writer.write_u16::<LittleEndian>(*value)?)
+            U16::LE(value) => Ok(writer.write_u16::<LittleEndian>(*value)?),
         }
     }
 
@@ -592,18 +575,16 @@ impl Message for U16 {
     /// v2.read(&mut s2).unwrap();
     /// assert_eq!(v2.inner(), 4);
     /// ```
-    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()>{
+    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()> {
         match self {
             U16::BE(value) => *value = reader.read_u16::<BigEndian>()?,
-            U16::LE(value) => *value = reader.read_u16::<LittleEndian>()?
+            U16::LE(value) => *value = reader.read_u16::<LittleEndian>()?,
         }
         Ok(())
     }
 
     /// Length of U16 is 2
-    fn length(&self) -> u64 {
-        2
-    }
+    fn length(&self) -> u64 { 2 }
 
     /// Use to cast an anonymous Message into U16
     ///
@@ -624,21 +605,16 @@ impl Message for U16 {
     ///     assert_eq!(cast!(DataType::U16, x[0]).unwrap(), 8)
     /// # }
     /// ```
-    fn visit(&self) -> DataType {
-        DataType::U16(self.inner())
-    }
+    fn visit(&self) -> DataType { DataType::U16(self.inner()) }
 
     /// No options
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 /// Unsigned 32 bits message
 pub type U32 = Value<u32>;
 
 impl Message for U32 {
-
     /// Write an unsigned 32 bits value
     ///
     /// # Example
@@ -655,7 +631,7 @@ impl Message for U32 {
     fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
         match self {
             U32::BE(value) => Ok(writer.write_u32::<BigEndian>(*value)?),
-            U32::LE(value) => Ok(writer.write_u32::<LittleEndian>(*value)?)
+            U32::LE(value) => Ok(writer.write_u32::<LittleEndian>(*value)?),
         }
     }
 
@@ -678,15 +654,13 @@ impl Message for U32 {
     fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()> {
         match self {
             U32::BE(value) => *value = reader.read_u32::<BigEndian>()?,
-            U32::LE(value) => *value = reader.read_u32::<LittleEndian>()?
+            U32::LE(value) => *value = reader.read_u32::<LittleEndian>()?,
         }
         Ok(())
     }
 
     /// Length of the 32 bits is four
-    fn length(&self) -> u64 {
-        4
-    }
+    fn length(&self) -> u64 { 4 }
 
     /// Use to cast an anonymous Message into U32
     ///
@@ -707,21 +681,17 @@ impl Message for U32 {
     ///     assert_eq!(cast!(DataType::U32, x[0]).unwrap(), 8)
     /// # }
     /// ```
-    fn visit(&self) -> DataType {
-        DataType::U32(self.inner())
-    }
+    fn visit(&self) -> DataType { DataType::U32(self.inner()) }
 
     /// No options
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 /// This is a wrapper around
 /// a copyable message to check constness
 #[derive(Debug)]
 pub struct Check<T> {
-    value: T
+    value: T,
 }
 
 impl<T> Check<T> {
@@ -738,19 +708,12 @@ impl<T> Check<T> {
     /// let mut s2 = Cursor::new(vec![5, 0]);
     /// assert!(x.read(&mut s2).is_err());
     /// ```
-    pub fn new(value: T) -> Self{
-        Check {
-            value
-        }
-    }
+    pub fn new(value: T) -> Self { Check { value } }
 }
 
 impl<T: Message + Clone + PartialEq> Message for Check<T> {
-
     /// Check values doesn't happen during write steps
-    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
-        self.value.write(writer)
-    }
+    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> { self.value.write(writer) }
 
     /// Check value will be made during reading steps
     ///
@@ -769,15 +732,13 @@ impl<T: Message + Clone + PartialEq> Message for Check<T> {
         let old = self.value.clone();
         self.value.read(reader)?;
         if old != self.value {
-            return Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidConst, "Invalid constness of data")))
+            return Err(Error::RdpError(RdpError::new(RdpErrorKind::InvalidConst, "Invalid constness of data")));
         }
         Ok(())
     }
 
     /// This is the length of the inner value
-    fn length(&self) -> u64 {
-        self.value.length()
-    }
+    fn length(&self) -> u64 { self.value.length() }
 
     /// Same as visit of the inner value
     ///
@@ -798,14 +759,10 @@ impl<T: Message + Clone + PartialEq> Message for Check<T> {
     ///     assert_eq!(cast!(DataType::U32, x[0]).unwrap(), 8)
     /// # }
     /// ```
-    fn visit(&self) -> DataType {
-        self.value.visit()
-    }
+    fn visit(&self) -> DataType { self.value.visit() }
 
     /// No option
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 impl Message for Vec<u8> {
@@ -817,24 +774,17 @@ impl Message for Vec<u8> {
     fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()> {
         if self.is_empty() {
             reader.read_to_end(self)?;
-        }
-        else {
+        } else {
             reader.read_exact(self)?;
         }
         Ok(())
     }
 
-    fn length(&self) -> u64 {
-        self.len() as u64
-    }
+    fn length(&self) -> u64 { self.len() as u64 }
 
-    fn visit(&self) -> DataType {
-        DataType::Slice(self.as_slice())
-    }
+    fn visit(&self) -> DataType { DataType::Slice(self.as_slice()) }
 
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 /// Add dynamic filtering capability for parent Node
@@ -874,8 +824,8 @@ pub type DynOptionFnSend<T> = dyn Fn(&T) -> MessageOption + Send;
 #[derivative(Debug)]
 pub struct DynOption<T> {
     inner: T,
-    #[derivative(Debug="ignore")]
-    filter: Box<DynOptionFnSend<T>>
+    #[derivative(Debug = "ignore")]
+    filter: Box<DynOptionFnSend<T>>,
 }
 
 /// The filter impl
@@ -929,11 +879,11 @@ impl<T> DynOption<T> {
     /// # }
     /// ```
     pub fn new<F: 'static>(current: T, filter: F) -> Self
-        where F: Fn(&T) -> MessageOption, F: Send {
-        DynOption {
-            inner: current,
-            filter : Box::new(filter)
-        }
+    where
+        F: Fn(&T) -> MessageOption,
+        F: Send,
+    {
+        DynOption { inner: current, filter: Box::new(filter) }
     }
 }
 
@@ -941,29 +891,19 @@ impl<T> DynOption<T> {
 /// is a transparent object for the inner
 impl<T: Message> Message for DynOption<T> {
     /// Transparent
-    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
-        self.inner.write(writer)
-    }
+    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> { self.inner.write(writer) }
 
     /// Transparent
-    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()> {
-        self.inner.read(reader)
-    }
+    fn read(&mut self, reader: &mut dyn Read) -> RdpResult<()> { self.inner.read(reader) }
 
     /// Transparent
-    fn length(&self) -> u64 {
-        self.inner.length()
-    }
+    fn length(&self) -> u64 { self.inner.length() }
 
     /// Transparent
-    fn visit(&self) -> DataType {
-        self.inner.visit()
-    }
+    fn visit(&self) -> DataType { self.inner.visit() }
 
     /// Transparent
-    fn options(&self) -> MessageOption {
-        (self.filter)(&self.inner)
-    }
+    fn options(&self) -> MessageOption { (self.filter)(&self.inner) }
 }
 
 /// Serialize a message into Vector
@@ -973,15 +913,15 @@ pub fn to_vec(message: &dyn Message) -> Vec<u8> {
     stream
 }
 
-
 #[macro_export]
 macro_rules! is_none {
-    ($expr:expr) => (match $expr.visit() {
-        DataType::None => true,
-        _ => false
-    })
+    ($expr:expr) => {
+        match $expr.visit() {
+            DataType::None => true,
+            _ => false,
+        }
+    };
 }
-
 
 /// This is an optional fields
 /// Actually always write but read if and only if the reader
@@ -1058,8 +998,7 @@ impl<T: Message> Message for Option<T> {
     fn length(&self) -> u64 {
         if let Some(value) = self {
             value.length()
-        }
-        else {
+        } else {
             0
         }
     }
@@ -1079,15 +1018,12 @@ impl<T: Message> Message for Option<T> {
     fn visit(&self) -> DataType {
         if let Some(value) = self {
             value.visit()
-        }
-        else {
+        } else {
             DataType::None
         }
     }
 
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 /// Array dynamic trame
@@ -1101,8 +1037,8 @@ pub struct Array<T> {
     /// This is the inner trame
     inner: Trame,
     /// function call to build each element of the array
-    #[derivative(Debug="ignore")]
-    factory: Box<ArrayFnSend<T>>
+    #[derivative(Debug = "ignore")]
+    factory: Box<ArrayFnSend<T>>,
 }
 
 impl<T: Message> Array<T> {
@@ -1126,35 +1062,28 @@ impl<T: Message> Array<T> {
     /// # }
     /// ```
     pub fn new<F: 'static>(factory: F) -> Self
-    where F: Fn() -> T, F: Send {
-        Array {
-            inner: trame![],
-            factory: Box::new(factory)
-        }
+    where
+        F: Fn() -> T,
+        F: Send,
+    {
+        Array { inner: trame![], factory: Box::new(factory) }
     }
 
     /// This is to be symmetric
     /// We can instanciate an array directly from a trame
     /// This is for the write side of the pattern
     pub fn from_trame(inner: Trame) -> Self {
-        Array {
-            inner,
-            factory: Box::new(|| panic!("Try reading a non empty array"))
-        }
+        Array { inner, factory: Box::new(|| panic!("Try reading a non empty array")) }
     }
 
-    pub fn inner(&self) -> &Trame {
-        &self.inner
-    }
+    pub fn inner(&self) -> &Trame { &self.inner }
 }
 
 /// Implement the message trait for Array
 impl<T: 'static + Message> Message for Array<T> {
     /// Write an array
     /// You may not use even if it works prefer using trame object
-    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
-        self.inner.write(writer)
-    }
+    fn write(&self, writer: &mut dyn Write) -> RdpResult<()> { self.inner.write(writer) }
 
     /// Read a dynamic array
     ///
@@ -1192,34 +1121,27 @@ impl<T: 'static + Message> Message for Array<T> {
     /// dyn_array.read(&mut s);
     /// assert_eq!(dyn_array.length(), 4)
     /// ```
-    fn length(&self) -> u64 {
-        self.inner.length()
-    }
+    fn length(&self) -> u64 { self.inner.length() }
 
     /// Visit the inner trame
     /// It's means always return a slice
     /// Prefer using `as_ref` and visit
-    fn visit(&self) -> DataType {
-        self.inner.visit()
-    }
+    fn visit(&self) -> DataType { self.inner.visit() }
 
     /// This kind of message have no option
-    fn options(&self) -> MessageOption {
-        MessageOption::None
-    }
+    fn options(&self) -> MessageOption { MessageOption::None }
 }
 
 /// Convenient method to get access to the inner type
 impl<T> AsRef<Trame> for Array<T> {
-    fn as_ref(&self) -> &Trame {
-        &self.inner
-    }
+    fn as_ref(&self) -> &Trame { &self.inner }
 }
 
 #[cfg(test)]
 mod test {
-    use super::*;
     use std::io::Cursor;
+
+    use super::*;
 
     #[test]
     fn test_data_u8_write() {
