@@ -1,12 +1,17 @@
 use std::collections::HashMap;
 use std::io::{Cursor, Read};
 
+use rasn::types::{ObjectIdentifier, OctetString, Oid};
+use rasn::AsnType;
+
 use crate::core::per;
 use crate::model::data::{
     to_vec, Array, Check, Component, DataType, DynOption, Message, MessageOption, Trame, U16, U32,
 };
 use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 use crate::model::unicode::Unicode;
+
+const T124_IDENTIFIER_KEY: &Oid = Oid::const_new(&[0, 0, 20, 124, 0, 1]);
 
 const T124_02_98_OID: [u8; 6] = [0, 0, 20, 124, 0, 1];
 const H221_CS_KEY: [u8; 4] = *b"Duca";
@@ -316,20 +321,61 @@ pub fn block_header(data_type: Option<MessageType>, length: Option<u16>) -> Comp
     ]
 }
 
+#[derive(Debug, AsnType, rasn::Encode)]
+#[rasn(automatic_tags, choice)]
+enum Key {
+    Object(ObjectIdentifier),
+    H221NonStandard(OctetString),
+}
+
+#[derive(Debug, AsnType, rasn::Encode)]
+#[rasn(automatic_tags)]
+struct ConnectData {
+    t124_identifier_key: Key,
+    connect_pdu: OctetString,
+}
+
 pub fn write_conference_create_request(user_data: &[u8]) -> RdpResult<Vec<u8>> {
-    let mut result = Cursor::new(vec![]);
-    per::write_choice(0, &mut result)?;
-    per::write_object_identifier(&T124_02_98_OID, &mut result)?;
-    per::write_length(user_data.len() as u16 + 14)?.write(&mut result)?;
-    per::write_choice(0, &mut result)?;
-    per::write_selection(0x08, &mut result)?;
-    per::write_numeric_string(b"1", 1, &mut result)?;
-    per::write_padding(1, &mut result)?;
-    per::write_number_of_set(1, &mut result)?;
-    per::write_choice(0xc0, &mut result)?;
-    per::write_octet_stream(&H221_CS_KEY, 4, &mut result)?;
-    per::write_octet_stream(user_data, 0, &mut result)?;
-    Ok(result.into_inner())
+    let connect_pdu = {
+        let mut result = Cursor::new(vec![]);
+
+        // Field zero is the conference name, but is this a name??? Conference name is a
+        // sequence type. Maybe a bitmask for present optional fields. Probably
+        // the choice value for connectGCCPDU (conferenceCreateRequest}.
+        per::write_choice(0, &mut result)?;
+
+        // What is this? (write numeric string does write a length). Bitmask for
+        // optional fields Optional field 4 is "conductedPrivileges" (comes
+        // after termination method though)
+        per::write_selection(0x08, &mut result)?;
+
+        // Numeric string is the only non-optional field in the sequence
+        per::write_numeric_string(b"1", 1, &mut result)?;
+
+        // lockedConfrence, listedConference and conductibleConference are
+        // non-optional booleans, Maybe packed into this field.
+        per::write_padding(1, &mut result)?;
+
+        // The termination type maybe since the field is non-optional. 1 = manual
+        per::write_number_of_set(1, &mut result)?;
+
+        // User data key choice maybe, but not sure why it would be 0xc0? Alternatively
+        // an optional field specified by the bitmask? If it's priviledges then assuming
+        // MSB first-encoding terminate and ejectUser
+        per::write_choice(0xc0, &mut result)?;
+
+        // Key is a choice? H221NonStandardIdentifier maybe?
+        per::write_octet_stream(&H221_CS_KEY, 4, &mut result)?;
+
+        // Userdata value is an octet string
+        per::write_octet_stream(user_data, 0, &mut result)?;
+
+        result.into_inner()
+    };
+    let connect_data =
+        ConnectData { t124_identifier_key: Key::Object(T124_IDENTIFIER_KEY.into()), connect_pdu: connect_pdu.into() };
+    let result = rasn::aper::encode(&connect_data)?;
+    Ok(result)
 }
 
 #[derive(Clone, Debug)]

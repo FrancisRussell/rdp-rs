@@ -138,15 +138,26 @@ pub enum Error {
 
     /// ASN1 decoding error
     #[error("ASN.1 decoding error: {0}")]
-    Asn1Decoding(#[from] rasn::error::DecodeError),
+    Asn1Decode(rasn::error::DecodeError),
 
     /// ASN1 encoding error
     #[error("ASN.1 encoding error: {0}")]
-    Asn1Encoding(#[from] rasn::error::EncodeError),
+    Asn1Encode(rasn::error::EncodeError),
 
     /// X509 decoding error
     #[error("X509 encoding error: {0}")]
     X509Decoding(String),
+}
+
+// It's unclear why we can't use #[from] for `EncodeError` and `DecodeError`. It
+// seems like something changed in rasn 12.0.
+
+impl From<rasn::error::EncodeError> for Error {
+    fn from(e: rasn::error::EncodeError) -> Error { Error::Asn1Encode(e) }
+}
+
+impl From<rasn::error::DecodeError> for Error {
+    fn from(e: rasn::error::DecodeError) -> Error { Error::Asn1Decode(e) }
 }
 
 impl<S: Read + Write> From<HandshakeError<S>> for Error {
