@@ -149,8 +149,8 @@ pub enum Error {
     X509Decoding(String),
 }
 
-// It's unclear why we can't use #[from] for `EncodeError` and `DecodeError`. It seems
-// like something changed in rasn 12.0.
+// It's unclear why we can't use #[from] for `EncodeError` and `DecodeError`. It
+// seems like something changed in rasn 12.0.
 
 impl From<rasn::error::EncodeError> for Error {
     fn from(e: rasn::error::EncodeError) -> Error { Error::Asn1Encode(e) }

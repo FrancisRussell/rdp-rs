@@ -15,6 +15,7 @@
 * Fix potential truncated write in `model::link::Stream::write` (now renamed).
 * Fix multiple potential truncated/oversized reads in `nla::cssp::cssp_connect`.
 * Fix oversized decode buffer in `BitmapEvent::decompress`.
+* Fix incorrect `connectPDU` length in `write_conference_create_request`.
 
 ### 0.1.1 (2020-04-11)
 #### Features
