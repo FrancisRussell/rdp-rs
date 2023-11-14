@@ -935,7 +935,7 @@ impl<T: Message> Message for Option<T> {
     /// use std::io::Cursor;
     /// use rdp::model::data::Message;
     /// let mut s1 = Cursor::new(vec![]);
-    /// Some(4).write(&mut s1);
+    /// Some(4u8).write(&mut s1);
     /// assert_eq!(s1.into_inner(), [4]);
     /// let mut s2 = Cursor::new(vec![]);
     /// Option::<u8>::None.write(&mut s2);
