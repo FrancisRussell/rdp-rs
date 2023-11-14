@@ -939,7 +939,7 @@ impl<T: Message> Message for Option<T> {
     /// assert_eq!(s1.into_inner(), [4]);
     /// let mut s2 = Cursor::new(Vec::<u8>::new());
     /// Option::<u8>::None.write(&mut s2);
-    /// assert_eq!(s2.into_inner(), [])
+    /// assert_eq!(s2.into_inner(), [] as [u8; 0])
     /// ```
     fn write(&self, writer: &mut dyn Write) -> RdpResult<()> {
         if let Some(value) = self {
