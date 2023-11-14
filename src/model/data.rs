@@ -937,7 +937,7 @@ impl<T: Message> Message for Option<T> {
     /// let mut s1 = Cursor::new(vec![]);
     /// Some(4u8).write(&mut s1);
     /// assert_eq!(s1.into_inner(), [4]);
-    /// let mut s2 = Cursor::new(vec![]);
+    /// let mut s2 = Cursor::new(Vec::<u8>::new());
     /// Option::<u8>::None.write(&mut s2);
     /// assert_eq!(s2.into_inner(), [])
     /// ```
