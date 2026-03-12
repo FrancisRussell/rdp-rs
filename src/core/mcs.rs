@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::io::{BufRead, Cursor, Read, Write};
 
 use rasn::types::OctetString;
-use rasn::AsnType;
+use rasn::{AsnType, Decoder};
 
 use crate::core::gcc::{
     block_header, client_core_data, client_network_data, client_security_data, read_conference_create_response,
