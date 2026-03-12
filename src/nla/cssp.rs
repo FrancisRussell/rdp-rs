@@ -128,7 +128,7 @@ pub fn create_ts_authenticate(nego: Vec<u8>, pub_key_auth: Vec<u8>) -> RdpResult
     Ok(rasn::der::encode(&ts_authenticate)?)
 }
 
-pub fn read_public_certificate(stream: &[u8]) -> RdpResult<X509Certificate> {
+pub fn read_public_certificate(stream: &[u8]) -> RdpResult<X509Certificate<'_>> {
     let res = parse_x509_certificate(stream).map_err(|e| Error::X509Decoding(e.to_string()))?;
     Ok(res.1)
 }

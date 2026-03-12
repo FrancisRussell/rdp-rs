@@ -114,7 +114,7 @@ pub trait Message: Send + std::fmt::Debug {
     ///
     /// Visit value and try to return inner type
     /// This is based on Tree visitor pattern
-    fn visit(&self) -> DataType;
+    fn visit(&self) -> DataType<'_>;
 
     /// Retrieve options of a subtype
     ///
@@ -194,7 +194,7 @@ impl Message for u8 {
     ///     }
     /// # }
     /// ```
-    fn visit(&self) -> DataType { DataType::U8(*self) }
+    fn visit(&self) -> DataType<'_> { DataType::U8(*self) }
 
     /// Retrieve option of a subnode
     ///
@@ -337,7 +337,7 @@ impl Message for Trame {
     ///     assert_eq!(cast!(DataType::U32, y[1]).unwrap(), 3)
     /// # }
     /// ```
-    fn visit(&self) -> DataType { DataType::Trame(self) }
+    fn visit(&self) -> DataType<'_> { DataType::Trame(self) }
 
     /// A trame have no options
     fn options(&self) -> MessageOption { MessageOption::None }
@@ -500,7 +500,7 @@ impl Message for Component {
     ///     assert_eq!(cast!(DataType::U32, y["field2"]).unwrap(), 3)
     /// # }
     /// ```
-    fn visit(&self) -> DataType { DataType::Component(self) }
+    fn visit(&self) -> DataType<'_> { DataType::Component(self) }
 
     /// A component have no option by default
     fn options(&self) -> MessageOption { MessageOption::None }
@@ -605,7 +605,7 @@ impl Message for U16 {
     ///     assert_eq!(cast!(DataType::U16, x[0]).unwrap(), 8)
     /// # }
     /// ```
-    fn visit(&self) -> DataType { DataType::U16(self.inner()) }
+    fn visit(&self) -> DataType<'_> { DataType::U16(self.inner()) }
 
     /// No options
     fn options(&self) -> MessageOption { MessageOption::None }
@@ -681,7 +681,7 @@ impl Message for U32 {
     ///     assert_eq!(cast!(DataType::U32, x[0]).unwrap(), 8)
     /// # }
     /// ```
-    fn visit(&self) -> DataType { DataType::U32(self.inner()) }
+    fn visit(&self) -> DataType<'_> { DataType::U32(self.inner()) }
 
     /// No options
     fn options(&self) -> MessageOption { MessageOption::None }
@@ -759,7 +759,7 @@ impl<T: Message + Clone + PartialEq> Message for Check<T> {
     ///     assert_eq!(cast!(DataType::U32, x[0]).unwrap(), 8)
     /// # }
     /// ```
-    fn visit(&self) -> DataType { self.value.visit() }
+    fn visit(&self) -> DataType<'_> { self.value.visit() }
 
     /// No option
     fn options(&self) -> MessageOption { MessageOption::None }
@@ -782,7 +782,7 @@ impl Message for Vec<u8> {
 
     fn length(&self) -> u64 { self.len() as u64 }
 
-    fn visit(&self) -> DataType { DataType::Slice(self.as_slice()) }
+    fn visit(&self) -> DataType<'_> { DataType::Slice(self.as_slice()) }
 
     fn options(&self) -> MessageOption { MessageOption::None }
 }
@@ -878,10 +878,9 @@ impl<T> DynOption<T> {
     ///     assert_eq!(cast!(DataType::Slice, message["Value"]).unwrap().len(), 1);
     /// # }
     /// ```
-    pub fn new<F: 'static>(current: T, filter: F) -> Self
+    pub fn new<F>(current: T, filter: F) -> Self
     where
-        F: Fn(&T) -> MessageOption,
-        F: Send,
+        F: Fn(&T) -> MessageOption + Send + 'static,
     {
         DynOption { inner: current, filter: Box::new(filter) }
     }
@@ -900,7 +899,7 @@ impl<T: Message> Message for DynOption<T> {
     fn length(&self) -> u64 { self.inner.length() }
 
     /// Transparent
-    fn visit(&self) -> DataType { self.inner.visit() }
+    fn visit(&self) -> DataType<'_> { self.inner.visit() }
 
     /// Transparent
     fn options(&self) -> MessageOption { (self.filter)(&self.inner) }
@@ -1015,7 +1014,7 @@ impl<T: Message> Message for Option<T> {
     ///     assert!(is_none!(Option::<U32>::None));
     /// # }
     /// ```
-    fn visit(&self) -> DataType {
+    fn visit(&self) -> DataType<'_> {
         if let Some(value) = self {
             value.visit()
         } else {
@@ -1061,10 +1060,9 @@ impl<T: Message> Array<T> {
     ///     assert_eq!(cast!(DataType::U16, dyn_array.as_ref()[1]).unwrap(), 1);
     /// # }
     /// ```
-    pub fn new<F: 'static>(factory: F) -> Self
+    pub fn new<F>(factory: F) -> Self
     where
-        F: Fn() -> T,
-        F: Send,
+        F: Fn() -> T + Send + 'static,
     {
         Array { inner: trame![], factory: Box::new(factory) }
     }
@@ -1126,7 +1124,7 @@ impl<T: 'static + Message> Message for Array<T> {
     /// Visit the inner trame
     /// It's means always return a slice
     /// Prefer using `as_ref` and visit
-    fn visit(&self) -> DataType { self.inner.visit() }
+    fn visit(&self) -> DataType<'_> { self.inner.visit() }
 
     /// This kind of message have no option
     fn options(&self) -> MessageOption { MessageOption::None }
