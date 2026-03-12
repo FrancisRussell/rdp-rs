@@ -4,8 +4,8 @@ use byteorder::{LittleEndian, ReadBytesExt as _};
 
 use crate::model::error::{Error, RdpError, RdpErrorKind, RdpResult};
 
-/// All this decompression code is directly inspired from the source code of
-/// rdesktop and directly ported to Rust.
+// All this decompression code is directly inspired from the source code of
+// rdesktop and directly ported to Rust.
 
 fn process_plane(input: &mut Cursor<&[u8]>, width: u32, height: u32, output: &mut [u8]) -> RdpResult<()> {
     let mut last_line: u32 = 0;

@@ -9,6 +9,7 @@ use rand::Rng;
 /// assert_eq!(vector.len(), 128);
 /// ```
 pub fn random(size: usize) -> Vec<u8> {
-    let mut rng = rand::thread_rng();
-    (0..size).map(|_| rng.gen()).collect()
+    let mut bytes = vec![0u8; size];
+    rand::rng().fill_bytes(&mut bytes);
+    bytes
 }

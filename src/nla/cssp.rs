@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use num_bigint::BigUint;
 use rasn::prelude::OctetString;
-use rasn::AsnType;
+use rasn::{AsnType, Decoder, Encoder};
 use x509_parser::certificate::X509Certificate;
 use x509_parser::parse_x509_certificate;
 
@@ -103,7 +103,7 @@ pub fn read_ts_server_challenge(stream: &[u8]) -> RdpResult<Vec<u8>> {
                 .ok_or_else(|| RdpError::new(RdpErrorKind::InvalidRespond, "no entries in negoTokens"))
         })
         .map(|datum| datum.nego_token)?;
-    Ok(nego_token.into())
+    Ok(nego_token.to_vec())
 }
 
 /// This the third step in CSSP Handshake
@@ -128,7 +128,7 @@ pub fn create_ts_authenticate(nego: Vec<u8>, pub_key_auth: Vec<u8>) -> RdpResult
     Ok(rasn::der::encode(&ts_authenticate)?)
 }
 
-pub fn read_public_certificate(stream: &[u8]) -> RdpResult<X509Certificate> {
+pub fn read_public_certificate(stream: &[u8]) -> RdpResult<X509Certificate<'_>> {
     let res = parse_x509_certificate(stream).map_err(|e| Error::X509Decoding(e.to_string()))?;
     Ok(res.1)
 }
@@ -150,7 +150,7 @@ pub fn read_ts_validate(request: &[u8]) -> RdpResult<Vec<u8>> {
     let pub_key: Vec<u8> = ts_validate
         .pub_key_auth
         .ok_or_else(|| RdpError::new(RdpErrorKind::InvalidOptionalField, "public key missing"))?
-        .into();
+        .to_vec();
     Ok(pub_key)
 }
 
